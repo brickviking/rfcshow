@@ -54,7 +54,7 @@ TITLES=-ref
 # Only time this doesn't work is if you have a $HOME/rfc that's a file, 
 # and not a dir. Then, if none of the others exist, we're in trouble
 PLACES="/usr/share/doc/RFC/links/ /usr/share/doc/rfc/ $HOME/rfc/"
-# This MUST be a directory you have write access to, with enough room for say, 5Mb
+# This MUST be a directory you have write access to, with enough room for say, 1Mb
 MYDIR=/tmp
 # You COULD put it into your own dir, but then we'd have to create it if it didn't
 # already exist.
@@ -74,7 +74,6 @@ PSEXT=ps
 TAREXT=tar
 GZEXT=gz
 BZ2EXT=bz2
-LZEXT=lzma
 # Now we generate a time ready for offset.
 MYTIMESTART=$(date +%s)
 # Gee, what happens if we have NONE of these? wow...
@@ -85,7 +84,6 @@ MYGUNZIP=$(type -p gunzip 2>/dev/null)
 MYBUNZIP=$(type -p bunzip2 2>/dev/null)
 # We prefer bzip2 over gzip
 MYUNCOMPRESS=${MYBUNZIP:-$MYGUNZIP}
-MYLZMA=$(type -p lzma 2>/dev/null)
 MYGZIP=$(type -p gzip 2>/dev/null)
 MYBZIP=$(type -p bzip2 2>/dev/null)
 MYCOMPRESS=${MYBZIP:-$MYGZIP}
@@ -366,10 +364,10 @@ TestItsHere() {
     fi
 }
 
+RfcEngine() {
 ############################################
 # Engine code
 ############################################
-RfcEngine() {
   MyStatus "Entering RfcEngine with X: $MYX; Y: $MYY; L: $MYLINES MLX: $MYLISTX File: $Q Val:$Val R: $RFCFile. DIALOG=$MyDialog"
     if [ "$STDOUT" ]; then
 # Used for the -stdout switch
@@ -1197,8 +1195,7 @@ TMenuGroup() { # Tens
 
 # ... and finally, the last menu. This is the one that shows available titles.
 
-SubMenuGroup() { 
-# Units
+SubMenuGroup() { # Units
 # We might as well just do the [b[z]]grep once, instead of up to ten times.
 # we can do a normal grep once we have the file in text form.
 # not only that, but we might as well use our MYFILE for the tempfile - it will
@@ -1287,7 +1284,8 @@ SubMenuGroup() {
       munchstring[that++]="rfc$M$C$X${B[$this]}"
     done
     # ... and the resulting menu
-    U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) "${munchstring[@]}" 2>&1 1>$(tty))
+    U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) "${munchstring[@]}" \
+        2>&1 1>$(tty))
     retval=$?
 }
 
@@ -2409,25 +2407,45 @@ Search() {
 # it simply won't work.
     perl -e '
   {
-    $RFCIndex = $ARGV[0];
-#	my $RFCIndex = @ARGV[0];
-	shift @ARGV;
-    my $search_str = uc(join " ", @ARGV);
-    open(my $RFCINDEX, q(<), $RFCIndex) or die "Unable to open rfc-index.txt for reading: $!";
-    <$RFCINDEX> for 1 .. 68;
-    my @match;
+    my $filename = $ARGV[0];
+    shift @ARGV;
+    my ($thing,$line,$first_word);
+    my $found = 0;
+    my $rfccount = 0;
+    my @rfclist;
+    my ($lookingfor) = join " ", @ARGV;
+#    print "The Result:\n";
+    open (RFCINDEX, $filename);
+    # How do we jump over the initial paragraphs? This just
+    # starts at the beginning.
+    foreach $line (<RFCINDEX>) 
     {
-        # paragraph mode
-        local $/ = "";
-        while (<$RFCINDEX>) {
-            tr/\r\n/  /;
-            s/\s+/ /;
-			push @match, (split /\W+/, $_)[0] if index(uc($_), $search_str) != -1;
-        }        
+      next if $. < 66;
+      if ($line !~ /^\s*$/){
+        $thing .= $line; 
+        # This is too simplistic, for example a search for mail
+        # matches the prefacing paragraph before all the descs
+        if ($line =~ /$lookingfor/i) {
+          $found = 1;
+          $rfccount++;
+          # now, how do we recover first element of a line?
+          $first_word = (split /\W+/, $line)[0];
+#          $first_word =~ s/^0+//;
+        }
+      }
+     else { 
+      if ($found) { 
+#      print $thing;
+# This should have prepended "0" removed.
+      print $first_word, " ";
+                }
+    $thing = ""; $found = 0;
     }
-	my $SearchText = join " ", @match;
-    print $SearchText;
-}' $MYFILE "${keyword}" > $MYFILE2
+  }
+#    print "Found $rfccount results";
+    close (RFCINDEX);
+  }
+' $MYFILE "$keyword" > $MYFILE2
 # No need for the index any more, might as well replace it with our target results
     mv -f $MYFILE2 $MYFILE
 # Here, we had better build VarArray for later ChooseList() function

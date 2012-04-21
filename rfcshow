@@ -54,7 +54,7 @@ TITLES=-ref
 # Only time this doesn't work is if you have a $HOME/rfc that's a file, 
 # and not a dir. Then, if none of the others exist, we're in trouble
 PLACES="/usr/share/doc/RFC/links/ /usr/share/doc/rfc/ $HOME/rfc/"
-# This MUST be a directory you have write access to, with enough room for say, 1Mb
+# This MUST be a directory you have write access to, with enough room for say, 5Mb
 MYDIR=/tmp
 # You COULD put it into your own dir, but then we'd have to create it if it didn't
 # already exist.
@@ -74,6 +74,7 @@ PSEXT=ps
 TAREXT=tar
 GZEXT=gz
 BZ2EXT=bz2
+LZEXT=lzma
 # Now we generate a time ready for offset.
 MYTIMESTART=$(date +%s)
 # Gee, what happens if we have NONE of these? wow...
@@ -84,6 +85,7 @@ MYGUNZIP=$(type -p gunzip 2>/dev/null)
 MYBUNZIP=$(type -p bunzip2 2>/dev/null)
 # We prefer bzip2 over gzip
 MYUNCOMPRESS=${MYBUNZIP:-$MYGUNZIP}
+MYLZMA=$(type -p lzma 2>/dev/null)
 MYGZIP=$(type -p gzip 2>/dev/null)
 MYBZIP=$(type -p bzip2 2>/dev/null)
 MYCOMPRESS=${MYBZIP:-$MYGZIP}

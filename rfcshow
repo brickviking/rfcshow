@@ -1,11 +1,12 @@
 #!/bin/bash
 # Copyright (C) 2005 Eric Gillespie
 # Copyright under the GNU Public License Version 2
-Revision=20
+Revision=31
 Minor=0.9
 
 # ZD: -- for long, - for short, the other way around is annoying
 # ZD: The indenting is making the code hard to read
+# Reformatted. See?
 
 ######################### Requirements #############################
 # ncftp, bash, expect (not mandatory, but it needs tcl installed), 
@@ -24,7 +25,7 @@ Minor=0.9
 #    you want to create one under your home directory.
 # *  Enter the following into a shell:
 
-#          rfcshow -get -ref -get -index -get xx00
+#          rfcshow --get -ref --get -index --get xx00
 
 #    This will get the cross references file, the index, and titles.
 # *  After this, run the program as normal.
@@ -56,7 +57,8 @@ PLACES="/usr/share/doc/RFC/links /usr/share/doc/rfc $HOME/rfc"
 MYDIR=/tmp
 # You COULD put it into your own dir, but then we'd have to create it if it didn't
 # already exist.
-MYFILE=$MYDIR/rfctemprfc 
+WHORANME=$(whoami)
+MYFILE=$MYDIR/rfctemprfc.$WHORANME.$$.$RANDOM
 MYFILE2=$MYDIR/rfctempoutput
 # Do we want the web site, or the ftp site? http would have to mean using wget/curl/lynx
 # with all the complications that would provide
@@ -73,33 +75,34 @@ BZ2EXT=bz2
 # Gee, what happens if we have NONE of these? wow...
 # Suggested by LennonNZ - thanks. This was for Debian boxes that don't get bzip2 tools
 # installed by default.
-MYGUNZIP=$(which gunzip 2>/dev/null)
-MYBUNZIP=$(which bunzip2 2>/dev/null)
+# ZD: these whiches could be replaced by types instead, as type is a builtin
+MYGUNZIP=$(type -p gunzip 2>/dev/null)
+MYBUNZIP=$(type -p bunzip2 2>/dev/null)
 MYUNCOMPRESS=${MYBUNZIP:-$MYGUNZIP}
-MYGZIP=$(which gzip 2>/dev/null)
-MYBZIP=$(which bzip2 2>/dev/null)
+MYGZIP=$(type -p gzip 2>/dev/null)
+MYBZIP=$(type -p bzip2 2>/dev/null)
 MYCOMPRESS=${MYBZIP:-$MYGZIP}
 # What if we don't even have a zgrep? Make one up, like bzgrep() ?
-MYZGREP=$(which zgrep 2>/dev/null)
+MYZGREP=$(type -p zgrep 2>/dev/null)
 # This is a little problematic for older FreeBSD systems (4.x) as
 # they never had a bzgrep in their bzip2 package. It's only recent.
 # So we have the aspect of: we can create bzip2 content, but we can't bzgrep it
-MYBZGREP=$(which bzgrep 2>/dev/null)
+MYBZGREP=$(type -p bzgrep 2>/dev/null)
 # Now I have a problem - I'm using hardcoded programs to (uncompress and) grep.
 MYCGREP=${MYBZGREP:-$MYZGREP}
-MYGREP=$(which grep 2>/dev/null)
+MYGREP=$(type -p grep 2>/dev/null)
 if [ -z "$MYBZGREP" ]; then
 # Had to hack one in, as one wasn't found on the machine.
 # This is a VERY simple version, and as such, has some limitations
 # like: only one search term, without spaces
-  bzgrep() {
-    this=$1
-    that=$2
-    bzcat "$that" | grep "$this"
-  }
-  MYBZGREP=bzgrep
+    bzgrep() {
+        this=$1
+        that=$2
+        bzcat "$that" | grep "$this"
+    }
+    MYBZGREP=bzgrep
 fi
-  
+
 # better put one in here, sure as eggs SOMEONE will want it
 DEFEXT=$TXTEXT
 ###### we intend to change it with command switches, otherwise it'll remain as .txt
@@ -115,11 +118,11 @@ CONTACT_TIMEOUT=60
 # lynx -dump http://www.rfc-editor.org/cgi-bin/rfcdoctype.pl?loc=RFC\&letsgo=822\&type=ftp\&file_format=txt
 # Why don't we ask the user which one they want of the ones we've found? 
 # $MyDialog --title "$ME: query" --radio ...
-MYNCGET=$(which ncftpget 2>/dev/null)
-MYNCLS=$( which ncftpls 2>/dev/null)
-MYLYNX=$(which lynx 2>/dev/null)
-MYWGET=$(which wget 2>/dev/null)
-MYCURL=$(which curl 2>/dev/null)
+MYNCGET=$(type -p ncftpget 2>/dev/null)
+MYNCLS=$( type -p ncftpls 2>/dev/null)
+MYLYNX=$(type -p lynx 2>/dev/null)
+MYWGET=$(type -p wget 2>/dev/null)
+MYCURL=$(type -p curl 2>/dev/null)
 # Now, it's time to select something to fetch with
 # We really DON'T want to use ftp unless we absolutely HAVE to
 # For the moment, until I unwire the logic, I'm selecting ncftpget
@@ -130,33 +133,33 @@ MYGET=${MYT1:-$MYT2}
 case $MYGET in
     $MYNCGET)
     # We should probably add in MYNCLS here
-    MYGETPARM=" -v "
-    MYLSPARM=" -1 "
+        MYGETPARM=" -v "
+        MYLSPARM=" -1 "
     # Should we also customise return errors in here?
-    ;;
+        ;;
     $MYLYNX)
-    MYGETPARM=" -dump "
+        MYGETPARM=" -dump "
 # Hrm. No MYLSPARM for lynx - better make one up.
-    MYLSPARM=" -dump "
-    ;;
+        MYLSPARM=" -dump "
+        ;;
     $MYWGET)
     # Wget downloads the whole directory listing when retrieving
     # a ftp document... We want wget to be totally quiet but this won't prevent
     # it from downloading a dir listing.
-    MYGETPARM=" -q "
-    ;;
+        MYGETPARM=" -q "
+        ;;
     $MYCURL)
     # We want curl to be totally quiet
-    MYGETPARM=" -q "
-    MYLSPARM=" -I "
+        MYGETPARM=" -sO "
+        MYLSPARM=" -I "
 # Interesting. Curl can give me the file size of a specific file, just by using -I.
 # Could be a way of losing the expect script and dep;  the only problem then being
 # that we _require_ curl
-    ;;
+        ;;
     *)
-    echo "Whoops - shouldn't have got here: got $MYGET - hit enter to continue"
-    read mumble
-    ;;
+        echo "Whoops - shouldn't have got here: got $MYGET - hit enter to continue"
+        read mumble
+        ;;
 esac
 
 ############################################################
@@ -170,17 +173,17 @@ esac
 ############################################################################################
 
 ReSize() {
-MYSIZE=$(stty size)
+    MYSIZE=$(stty size)
 # MYX and MYY and MYLINES all need changing...
-MYY=${MYSIZE% *}
-MYX=$(( ${MYSIZE##* } - 2 ))
-MYX=$( echo $(($MYX - 2 )) )
-if [ $MYX -gt 78 ]; then
-  MYLISTX=78
-else
-  MYLISTX=$MYX
-fi
-MYLINES=$MYY
+    MYY=${MYSIZE% *}
+    MYX=$(( ${MYSIZE##* } - 2 ))
+    MYX=$( echo $(($MYX - 2 )) )
+    if [ $MYX -gt 78 ]; then
+        MYLISTX=78
+    else
+        MYLISTX=$MYX
+    fi
+    MYLINES=$MYY
 }
 
 ############################################################################################
@@ -189,84 +192,85 @@ MYLINES=$MYY
 #
 ############################################################################################
 seq() {
-  seqplace=$(which seq)
-  case $OSTYPE in 
-    freebsd*)
+    seqplace=$(type -p seq)
+    case $OSTYPE in 
+        freebsd*)
 # jot needs to have the count of values as the iterate, not the maxval
-    jot $(($3 + 1 )) $1 $3 $2 ;;
-    *) $seqplace $1 $2 $3 ;;
-  esac
+            jot $(($3 + 1 )) $1 $3 $2 ;;
+        *) $seqplace $1 $2 $3 ;;
+    esac
 }
 
 # Utility function
 DeadYet() {
-        if [ $retval -gt 0 ]; then
-          menulevel=0  
-        fi
+    if [ $retval -gt 0 ]; then
+        menulevel=0  
+    fi
 }
 
 # This routine tests (1) is the file here? Returns three vars: NOTHERE, HERE and mumble
 TestItsHere() {
-  NOTHERE=1
+    NOTHERE=1
 # Got to get this bit right
-  mumble=$(ls $REMOTEFILE* 2>/dev/null )
-  if [ "$mumble" ]; then
-    HERE=$PLACE
-    NOTHERE=0
-  fi
+    mumble=$(ls $REMOTEFILE* 2>/dev/null )
+    if [ "$mumble" ]; then
+        HERE=$PLACE
+        NOTHERE=0
+    fi
 }
 
 ############################################
 # Engine code
 ############################################
 RfcEngine() {
-  if [ "$STDOUT" ]; then
+    if [ "$STDOUT" ]; then
 # Used for the -stdout switch
-    cat $MYFILE
-  else
+        cat $MYFILE
+    else
           # Suggested by LennonNZ#nzlinux noting whiptail didn't scroll textboxes
-    case $MyDialog in
+        case $MyDialog in
             $MyWHIPTAIL)
             # Line to tell the user to wait, as whiptail takes time on a big file.
-      $MyDialog --title "$ME-$Minor.$Revision: Info" --infobox "Please wait while I display file" 11 50
-      sleep 2
-      $MyDialog --scrolltext --title "$ME-$Minor.$Revision: Supplied RFCs" --textbox $MYFILE "$MYLINES" "$MYLISTX"
-            ;;
+                $MyDialog --title "$ME-$Minor.$Revision: Info" --infobox "Please wait while I display file" 11 50
+                sleep 2
+                $MyDialog --title "$ME-$Minor.$Revision: Supplied RFCs" --scrolltext --textbox $MYFILE "$MYLINES" "$MYLISTX"
+                sleep 5
+                ;;
             *)
-      $MyDialog --title "$ME-$Minor.$Revision: Supplied RFCs" --textbox $MYFILE "$MYLINES" "$MYLISTX"
-      ;;
-      esac
-  fi
+                $MyDialog --title "$ME-$Minor.$Revision: Supplied RFCs" --textbox $MYFILE "$MYLINES" "$MYLISTX"
+                ;;
+        esac
+    fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
-      rm -rf $MYFILE
+    rm -rf $MYFILE
 }
 
 PdfEngine() {
 # Lets look for either of acroread, xpdf or gv
-MyAcro=$( which acroread 2>/dev/null )
-MyXpdf=$( which xpdf 2>/dev/null )
-MyGv=$( which gv 2>/dev/null  )
-First=${MyAcro:-$MyXpdf}
-MyPDFViewer=${First:-$MyGv}
-unset First
+    MyAcro=$( type -p acroread 2>/dev/null )
+    MyXpdf=$( type -p xpdf 2>/dev/null )
+    MyGv=$( type -p gv 2>/dev/null  )
+    First=${MyAcro:-$MyXpdf}
+    MyPDFViewer=${First:-$MyGv}
+    unset First
 # ZD: Needs to be commented, or at least needs a header introducing it ;)
-  if [ "$MyPDFViewer" ]; then
-    if [ $DISPLAY ]; then
-      $MyDialog --title "Supplied RFCs" --msgbox "$ME-$Minor.$Revision: running external viewer $MyPDFViewer" 8 "$MYLISTX"
-      $MyPDFViewer $MYFILE.pdf
+    if [ "$MyPDFViewer" ]; then
+        if [ $DISPLAY ]; then
+            $MyDialog --title "Supplied RFCs" --msgbox "$ME-$Minor.$Revision: running external viewer $MyPDFViewer" 8 "$MYLISTX"
+            $MyPDFViewer $MYFILE.pdf
+        else
+            $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "You haven't got X running, or you didn't export DISPLAY" 8 60
+        fi
     else
-              $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "You haven't got X running, or you didn't export DISPLAY" 8 60
+        $MyDialog --title  "$ME-$Minor.$Revision: Error" --msgbox "We were unable to find a PDF viewer on your system" 8 60
     fi
-  else
-          $MyDialog --title  "$ME-$Minor.$Revision: Error" --msgbox "We were unable to find a PDF viewer on your system" 8 60
-  fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
 
 # ZD: NEVER EVER(!!!) rm -rf a file, always rm -f, if 
 # ZD: the file turns out to be something else, things can get messy
-      rm -rf $MYFILE.pdf
+    rm -f $MYFILE.pdf
 }
 
 # ZD: I like your wrappers, but perhaps they should all be at one place so
@@ -274,22 +278,22 @@ unset First
 PsEngine() {
 # Surely there MUST be more than one PS viewer - and we don't 
 # need X either, but I don't account for SVGA/fb here.
-MyPsViewer=$(which gv 2>/dev/null)
-  if [ "$MyPsViewer" ]; then
-    if [ $DISPLAY ]; then
-      $MyDialog --title "$ME-$Minor.$Revision: Supplied RFCs" --msgbox "running external viewer $MyPsViewer" 8 "$MYLISTX"
-      $MyPsViewer $MYFILE.ps
-    else
+    MyPsViewer=$(type -p gv 2>/dev/null)
+    if [ "$MyPsViewer" ]; then
+        if [ $DISPLAY ]; then
+            $MyDialog --title "$ME-$Minor.$Revision: Supplied RFCs" --msgbox "running external viewer $MyPsViewer" 8 "$MYLISTX"
+            $MyPsViewer $MYFILE.ps
+        else
 # This error message makes no sense to non-geeks
-      $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "You haven't got X running, or you didn't export DISPLAY" 12 60
-    fi
-  else
-      $MyDialog --title  "$ME-$Minor.$Revision: Error" --msgbox "We were unable to find a Postscript viewer on your system" 8 60
+            $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "You haven't got X running, or you didn't export DISPLAY" 12 60
+        fi
+    else
+        $MyDialog --title  "$ME-$Minor.$Revision: Error" --msgbox "We were unable to find a Postscript viewer on your system" 8 60
     fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
 # ZD: rm -rf again
-  rm -rf $MYFILE.ps
+    rm -f $MYFILE.ps
 }
 
 ####################################################################################
@@ -304,91 +308,91 @@ MyPsViewer=$(which gv 2>/dev/null)
 # I also think we've duplicated code here with GoCat... but it's not 100% duplicated
 # which means some inefficiency.
 RenderCore() {
-RFCFile=$Val
+    RFCFile=$Val
 # ZD: This can all probably be done in alot less code by using a loop
-if [ "`ls | grep -e rfc$Val.$DEFEXT`" ]; then
+    if [ "`ls | grep -e rfc$Val.$DEFEXT`" ]; then
   #  file-type detection and decompression as per type
-  if [ -f rfc$Val.$DEFEXT ]; then
-    case $DEFEXT in 
-      pdf) 
-          GoCat > $MYFILE.pdf
-          PdfEngine ;;
-      txt) 
-          GoCat | tr -d '\014\015' > $MYFILE
-          RfcEngine ;;
-       ps) 
-          GoCat > $MYFILE.ps
-          PsEngine ;;
-    esac
-  elif [ -f rfc$Val.txt.gz ]; then
-    GoCat | tr -d '\014\015' > $MYFILE
-    RfcEngine
-  elif [ -f rfc$Val.txt.bz2 ]; then
+        if [ -f rfc$Val.$DEFEXT ]; then
+            case $DEFEXT in 
+                pdf) 
+                    GoCat > $MYFILE.pdf
+                    PdfEngine ;;
+                txt) 
+                    GoCat | tr -d '\014\015' > $MYFILE
+                    RfcEngine ;;
+                ps) 
+                    GoCat > $MYFILE.ps
+                    PsEngine ;;
+            esac
+        elif [ -f rfc$Val.txt.gz ]; then
+            GoCat | tr -d '\014\015' > $MYFILE
+            RfcEngine
+        elif [ -f rfc$Val.txt.bz2 ]; then
 #  RfcEngine
-    if [ "$Val" = "-ref" ]; then
-      MYLISTX=$((MYX - 2 ))
+            if [ "$Val" = "-ref" ]; then
+                MYLISTX=$((MYX - 2 ))
       # Replace with more folded lines than normal, as this file
       # is DEFINITELY wider than 72 chars
-      GoCat | fold -s -w $((MYX - 5)) | tr -d '\014\015'> $MYFILE
-    else
-      GoCat | tr -d '\014\015'> $MYFILE
-    fi
-    RfcEngine
-  elif [ -f rfc$Val.txt ]; then
-    GoCat | tr -d '\014\015' > $MYFILE
-    RfcEngine
+                GoCat | fold -s -w $((MYX - 5)) | tr -d '\014\015'> $MYFILE
+            else
+                GoCat | tr -d '\014\015'> $MYFILE
+            fi
+            RfcEngine
+        elif [ -f rfc$Val.txt ]; then
+            GoCat | tr -d '\014\015' > $MYFILE
+            RfcEngine
 # Now we shift a notch - we've got problems here, if we haven't
 # selected pdf or ps, but we have it INSTEAD of the .txt, then
 # our user's gonna get a surprise. Breaks the TAOUP "least surprise" rule.
 # Other alternative is where we've called for pdf, but we have txt
-  elif [ -f rfc$Val.pdf ]; then
-    GoCat > $MYFILE.pdf
-    PdfEngine
-  elif [ -f rfc$Val.pdf.gz ]; then
-    GoCat > $MYFILE.pdf
-    PdfEngine
-  elif [ -f rfc$Val.txt.pdf ]; then
-    GoCat > $MYFILE.pdf
-    PdfEngine
-  elif [ -f rfc$Val.txt.pdf.gz ]; then
-    GoCat > $MYFILE.pdf
-    PdfEngine
-  elif [ -f rfc$Val.ps ]; then
-    GoCat > $MYFILE.ps
-    PsEngine
-  elif [ -f rfc$Val.ps.gz ]; then
-    GoCat > $MYFILE.ps
-    PsEngine
-  else
-    echo "$ME-$Minor.$Revision: What the hey?  I shouldn\'t get to here...Hit enter to continue"
-    read mumble
-  fi
-elif [ "`ls | grep -e rfc$Val.txt.$DEFEXT`" ]; then
-  GoCat > $MYFILE.pdf
-  PdfEngine
-  rm $MYFILE.pdf
-else
+        elif [ -f rfc$Val.pdf ]; then
+            GoCat > $MYFILE.pdf
+            PdfEngine
+        elif [ -f rfc$Val.pdf.gz ]; then
+            GoCat > $MYFILE.pdf
+            PdfEngine
+        elif [ -f rfc$Val.txt.pdf ]; then
+            GoCat > $MYFILE.pdf
+            PdfEngine
+        elif [ -f rfc$Val.txt.pdf.gz ]; then
+            GoCat > $MYFILE.pdf
+            PdfEngine
+        elif [ -f rfc$Val.ps ]; then
+            GoCat > $MYFILE.ps
+            PsEngine
+        elif [ -f rfc$Val.ps.gz ]; then
+            GoCat > $MYFILE.ps
+            PsEngine
+        else
+            echo "$ME-$Minor.$Revision: What the hey?  I shouldn\'t get to here...Hit enter to continue"
+            read mumble
+        fi
+    elif [ "`ls | grep -e rfc$Val.txt.$DEFEXT`" ]; then
+        GoCat > $MYFILE.pdf
+        PdfEngine
+        rm  -f $MYFILE.pdf
+    else
   # Weakness here - we never check negative numbers or non-numbers.
-  if [ "$Val" = 0 ]; then
-          $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "We can't download or show rfc0, sorry.\nIt doesn't exist." 11 50
-  else
+        if [ "$Val" = 0 ]; then
+            $MyDialog --title "$ME-$Minor.$Revision: Error" --msgbox "We can't download or show rfc0, sorry.\nIt doesn't exist." 11 50
+        else
 # This is where we offer to fetch the missing rfc - there's been an inconsistency listed
 # here that 0 shows up, but can't (obviously) be downloaded. Hence the addition of the previous code
 
 # ZD: Perhaps you should write a wrapper for your dialogs so that you can easily
 # ZD: add other interfaces (ask me about xmsg)
-  $MyDialog --title "$ME-$Minor.$Revision: error!" --yesno "Sorry, rfc$Val.$DEFEXT is not in this database.\n\
+            $MyDialog --title "$ME-$Minor.$Revision: error!" --yesno "Sorry, rfc$Val.$DEFEXT is not in this database.\n\
 $ME -index will give you the current documents here.\n\
 Shall I try to fetch rfc$Val.txt from\n\
 $REMOTEPLACE ?" 11 50
-  if [ "$?" = 0 ]; then
-    REMOTEFILE=rfc$Val.$DEFEXT
-    Num=$Val
-    Val=-get
-    FetchSingle
-  fi
-  fi # End of test for $Val = 0
-fi # We leave if the file exists, without hitting the preceding code.
+            if [ "$?" = 0 ]; then
+                REMOTEFILE=rfc$Val.$DEFEXT
+                Num=$Val
+                Val=-get
+                FetchSingle
+            fi
+        fi # End of test for $Val = 0
+    fi # We leave if the file exists, without hitting the preceding code.
 }
 
 ############# End of engine code ###################
@@ -398,7 +402,7 @@ fi # We leave if the file exists, without hitting the preceding code.
 ####################################################
 
 RfcHelp() {
-  cat << .EOF
+    cat << .EOF
 Hello there. This program shows RFC documents. "RFC" stands
 for Requests For Comment. An RFC document talks about one small
 part of the Internet, sometimes in heaps of detail, and there
@@ -411,64 +415,64 @@ Most recent local document number: $MAXVAL
 I found some RFC documents stored in 
   $PLACE
 .EOF
-if [ "$WRITEABLE" -a "$PLACE" != "$WRITEABLE" ]; then
-  cat << .EOF
+    if [ "$WRITEABLE" -a "$PLACE" != "$WRITEABLE" ]; then
+        cat << .EOF
 If you ask for ones I don't have, I'll get them from:
   $REMOTEPLACE
 and put them here:
   $WRITEABLE
 .EOF
-elif [ "$WRITEABLE" ]; then
+    elif [ "$WRITEABLE" ]; then
         cat << .EOF
 If you ask for ones I don't have, I'll get them from:
 $REMOTEPLACE
 .EOF
-else
-cat << .EOF
+    else
+        cat << .EOF
 but you need to make a directory so I can download other
 RFC documents to it. You can either create your own, as in
 /home/$USER/rfc, or ask the admin to change the permissions for
 $PLACE
 .EOF
-fi
-cat << .EOF
+    fi
+    cat << .EOF
 
 Syntax: (what you can type in to get stuff)
 Stuff in [ ]  is optional, stuff in { } means optional, but
 you should only choose one of the set. mmmm and nnn and ppp
 stand for some number you're supposed to put in.
-  $ME [{-txt | -pdf | -ps } [ -stdout ] nnnn ]
-      [ -no ] (should precede ALL other switches)
-      {-menu | -index | -list | -prompt }
-      [ -keyword blah ] [ -title nnnn ]
-      [-range nnnn pppp]
-      - where nnnn/pppp is currently between 0 and $MAXVAL.
-      [ -get nnnn] [-getlatest nnnn] 
-      [-getrange mmmm pppp] 
+  $ME [{--txt | --pdf | --ps } [ --stdout ] nnnn ]
+      [ --no ] (should precede ALL other switches)
+      {--menu | --index | --list | --prompt }
+      [ --keyword blah ] [ --title nnnn ]
+      [--range nnnn pppp]
+      where nnnn/pppp is currently between 0 and $MAXVAL.
+      [ --get nnnn] [--getlatest nnnn] 
+      [--getrange mmmm pppp] 
   $ME                 Show rfcshow menu.
   $ME nnnn            Show rfc nnnn in text format.
-  $ME -pdf/-ps/-txt   Show rfc nnnn in that format, if 
+  $ME --pdf/--ps/--txt   Show rfc nnnn in that format, if 
                       it's available here. If it's not available,
                       I will ask to download it.
-  $ME -stdout nnnn    cats the following item to stdout
+  $ME --stdout nnnn    cats the following item to stdout
                       (usually to your screen).
-  $ME -no             Don't allow the creation of a 
+  $ME --no             Don't allow the creation of a 
                       place to store rfc documents.
-  $ME -index          to show an index of all available
+  $ME --index          to show an index of all available
                       rfc files.
-  $ME -listall        gives you a list of all rfc documents
+  $ME --listall        gives you a list of all rfc documents
                       available here.
-  $ME -list           gives you a list of rfc documents available
+  $ME --list           gives you a list of rfc documents available
                       here in selected format (text, if you didn't 
                       choose one).
-  $ME -menu           a pick-one-number menu to get that rfc number.
-  $ME -prompt         prompts you for the specific RFC number to view.
-  $ME -keyword blah   returns RFC documents that contain "blah" in title.
-  $ME -title nnnn      returns title of RFC nnnn
-  $ME -get nnnn       gets rfcnnnn from remote site (txt default).
-  $ME -latest         gets latest available rfc number from remote site.
-  $ME -getlatest      gets latest rfcs from remote site.
-  $ME [-pdf|-txt|-ps] -getrange mmmm pppp
+  $ME --menu           a pick-one-number menu to get that rfc number.
+  $ME --prompt         prompts you for the specific RFC number to view.
+  $ME --keyword blah   returns RFC documents that contain "blah" in title.
+  $ME --title nnnn      returns title of RFC nnnn
+  $ME --get nnnn       gets rfcnnnn from remote site (txt default).
+  $ME --latest         gets latest available rfc number from remote site.
+  $ME --getlatest      gets latest rfcs from remote site.
+  $ME [--pdf|--txt|--ps] -getrange mmmm pppp
       gets all rfcmmmm - rfcpppp in selected format (txt is default)
       from remote site if available in that format 
       (txt are always available, others are variable)
@@ -494,38 +498,38 @@ stand for some number you're supposed to put in.
 ###########################################################
 MenuCore() {
     MYLINES=17
-      if [ "$MAXK" -eq "0" ]; then
+    if [ "$MAXK" -eq "0" ]; then
         K=0
-      else
+    else
         KMenuGroup
         DeadYet
-      fi
-      if [ "$menulevel" -gt 0 ]; then
+    fi
+    if [ "$menulevel" -gt 0 ]; then
         if [ "$MAXK" -eq "0" -a "$MAXH" -eq "0" ]; then
-          H=0
+            H=0
         else
-          HMenuGroup
-          DeadYet
+            HMenuGroup
+            DeadYet
         fi
-      fi
-      if [ "$menulevel" -gt 0 ]; then
+    fi
+    if [ "$menulevel" -gt 0 ]; then
         if [ "$MAXK" -eq "0" -a "$MAXH" -eq "0" -a "$MAXT" -eq "0" ]; then
-          T=0
+            T=0
         else
-          TMenuGroup
-          DeadYet
+            TMenuGroup
+            DeadYet
         fi
-      fi
-      if [ "$menulevel" -gt 0 ]; then
+    fi
+    if [ "$menulevel" -gt 0 ]; then
         SubMenuGroup
         DeadYet
-      fi
+    fi
     if [ "$K" -a "$H" -a "$T" -a "$U" ]; then
-      Val=$(($K + $H + $T + $U))
-      MYLINES=$MYY
-      menulevel=2
+        Val=$(($K + $H + $T + $U))
+        MYLINES=$MYY
+        menulevel=2
     else
-      menulevel=0
+        menulevel=0
     fi
 # Hmmm - what do we have for "else"? noexit=0?
 #      Val=0
@@ -539,83 +543,87 @@ MenuCore() {
 
 TaskSelect() {
 # Don't forget to take the vagaries of whiptail or old dialog into account
-  menulevel=1
 # I've thought of an extra category - non-numeric RFC - rfcxx00 is an example. This should NOT be
 # fed by a text requester, but by a picklist, so we can limit the choices the user gets.
-  if [ "$MyDialog" = "$MyKDialog" ]; then
-    Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick one from list" I "Index of all RFCs" D "List local RFCs" S "Search RFC Index" T "Show title of RFC" J "Get Latest RFCs" G "Get single RFC" R "Get RFC Range" H 'Help!' X Exit 2>&1 >$(tty))
-    blah
-  else
-    Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" 22 40 15 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick one from list" I "Index of all RFCs" D "List local RFCs" S "Search RFC Index" T "Show title of RFC" J "Get Latest RFCs" G "Get single RFC" R "Get RFC Range" H 'Help!' X Exit 2>&1 >$(tty))
-  fi
-  retval=$?
+    menulevel=1
+    MyString=( 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick one by number from list" K "Text RFCs (non numeric)" D "Directory of local RFCs" I "RFC Index (total)" S "Search RFC Index" T "Show title of RFC" L "Get Latest RFCs" G "Get single RFC" R "Get RFC Range" H 'Help!' X Exit )
+        
+    if [ "$MyDialog" = "$MyKDialog" ]; then
+        Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" "${MyString[@]}" 2>&1 >$(tty))
+        blah
+    else
+#        Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" 22 40 15 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick one by number from list" K "Text RFCs (non numeric)" D "Directory of local RFCs" I "RFC Index (total)" S "Search RFC Index" T "Show title of RFC" J "Get Latest RFCs" G "Get single RFC" R "Get RFC Range" H 'Help!' X Exit 2>&1 >$(tty))
+        Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" 22 40 15 "${MyString[@]}" 2>&1 >$(tty))
+    fi
+    retval=$?
   # DeadYet changes menulevel to 0
-  DeadYet
-  if [ "$menulevel" -lt 1 ]; then
-    Out=X
-  fi
-	# ZD: Again, waht this does is pretty unclear without comments
-  case $Out in
-          G) 
-          # First one gives me $Val, pair this up with -get, guess what we have...
-          PromptForNumber
-          DeadYet
-          if [ "$menulevel" -gt 0 ]; then
-            REST="$Val $REST"
-            Q=-get 
-          fi
-          ;;
-          H) Q=-help ;;
-          2) PromptForNumber "Bottom of range"
-          DeadYet
-          if [ "$menulevel" -gt 0 ]; then
-            Val1=$Val
-            PromptForNumber "Top of range"
-            DeadYet
-            if [ "$menulevel" -gt 0 ]; then
-              Val2=$Val
-              REST="$Val1 $Val2 $REST"
-              Q=-range
-            fi
-          fi
-          ;;
-          I) Q=-index ;;
-          J) Q=-getlatest ;;
-          D) Q=-list ;;
-          9) Q=-menu ;;
-          1) Q=-prompt ;;
-          R) PromptForNumber "Bottom of range"
-          DeadYet
-          if [ "$menulevel" -gt 0 ]; then
-            Val1=$Val
-            PromptForNumber "Top of range"
-            DeadYet
-            if [ "$menulevel" -gt 0 ]; then
-              Val2=$Val
-              REST="$Val1 $Val2 $REST"
-              Q=-getrange
-            fi
-          fi
-          ;;
-          S) Q=-search ;;
-          T) Q=-title ;;
-          X) Q=-exit
-          noexit=0 ;;
-  esac
-  case $Q in 
-    -prompt|-menu) DEFEXT=$($MyDialog --title "$ME-$Minor.$Revision: output format" --menu "Select output format" 12 40 5 pdf PDF ps PS txt Text stdout Stdout 2>&1 >$(tty))
     DeadYet
+    if [ "$menulevel" -lt 1 ]; then
+        Out=X
+    fi
+	# ZD: Again, waht this does is pretty unclear without comments
+    case $Out in
+        1) Q=--prompt ;;
+        2) PromptForNumber "Bottom of range"
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                Val1=$Val
+                PromptForNumber "Top of range"
+                DeadYet
+                if [ "$menulevel" -gt 0 ]; then
+                    Val2=$Val
+                    REST="$Val1 $Val2 $REST"
+                    Q=--range
+                fi
+            fi
+            ;;
+        9) Q=--menu ;;
+        D) Q=--list ;;
+        G) 
+          # First one gives me $Val, pair this up with -get, guess what we have...
+            PromptForNumber
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                REST="$Val $REST"
+                Q=--get 
+            fi
+            ;;
+        H) Q=--help ;;
+        I) Q=-index ;;
+        K) Q=--itemlist ;;
+        L) Q=--getlatest ;;
+        R) PromptForNumber "Bottom of range"
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                Val1=$Val
+                PromptForNumber "Top of range"
+                DeadYet
+                if [ "$menulevel" -gt 0 ]; then
+                    Val2=$Val
+                    REST="$Val1 $Val2 $REST"
+                    Q=--getrange
+                fi
+            fi
+            ;;
+        S) Q=--search ;;
+        T) Q=--title ;;
+        X) Q=--exit
+            noexit=0 ;;
+    esac
+    case $Q in 
+        --prompt|--menu) DEFEXT=$($MyDialog --title "$ME-$Minor.$Revision: output format" --menu "Select output format" 12 40 5 pdf PDF ps PS txt Text stdout Stdout 2>&1 >$(tty))
+            DeadYet
     # Need to do a condition test for menulevel=0
-    ;;
-  esac
-  if [ "$DEFEXT" = "stdout" ]; then
-           DEFEXT=txt
+            ;;
+    esac
+    if [ "$DEFEXT" = "stdout" ]; then
+        DEFEXT=txt
            # Add stdout flag
-           STDOUT=1
-  fi
-  if [ "$menulevel" -gt 0 ]; then
-    ParseSwitch
-  fi
+        STDOUT=1
+    fi
+    if [ "$menulevel" -gt 0 ]; then
+        ParseSwitch
+    fi
 
 }
 
@@ -627,11 +635,11 @@ KMenuGroup () {
 # New comments:
 # Contributed bit of code to leverage MAXK for menus. 
 # Only hassle is, it doesn't show for files: [MAXVAL..MAXREMOTEVAL]
-        K=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
+    K=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
         0 rfc1-rfc999 \
-      $(for ((i=1;i<=MAXK;i++)) ; do echo -n "${i}000 rfc${i}000-rfc${i}999 "; done) \
+        $(for ((i=1;i<=MAXK;i++)) ; do echo -n "${i}000 rfc${i}000-rfc${i}999 "; done) \
         2>&1 1>$(tty))
-        retval=$?
+    retval=$?
 }
 #        1000 rfc1000-rfc1999 \
 #        2000 rfc2000-rfc2999 \
@@ -639,52 +647,52 @@ KMenuGroup () {
 #        4000 rfc4000-rfc4999 \
 
 HMenuGroup () {
-        local MYVAL
-        M=$(($K/1000))
-        Ma=$(($K/1000))
-        if [ $M -eq 0 ]; then
-                M=""
-        fi
+    local MYVAL
+    M=$(($K/1000))
+    Ma=$(($K/1000))
+    if [ $M -eq 0 ]; then
+        M=""
+    fi
 #        if [ $Ma -le $MAXK ]; then
-          MYVAL=9
+    MYVAL=9
 #        else
 #          MYVAL=$MAXH
 #        fi
-        H=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
+    H=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
         0 rfc"$M"000-rfc"$M"099 \
-      $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}00 rfc$M${i}00-rfc$M${i}99 "; done) \
+        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}00 rfc$M${i}00-rfc$M${i}99 "; done) \
         2>&1 1>$(tty))
-        retval=$?
+    retval=$?
 }
 
 TMenuGroup () {
-        local MYVAL
-        C=$(($H/100))
-        Ca=$(($H/100))
-        if [ "$M" = "" ]; then
-          if [ $C -eq 0 ]; then
-                C=""
-          fi
+    local MYVAL
+    C=$(($H/100))
+    Ca=$(($H/100))
+    if [ "$M" = "" ]; then
+        if [ $C -eq 0 ]; then
+            C=""
         fi
-          MYVAL=9
-        T=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 ))  \
+    fi
+    MYVAL=9
+    T=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 ))  \
         0 rfc"$M$C"00-rfc"$M$C"09 \
-      $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}0 rfc$M$C${i}0-rfc$M$C${i}9 "; done) \
+        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}0 rfc$M$C${i}0-rfc$M$C${i}9 "; done) \
         2>&1 1>$(tty))
-        retval=$?
+    retval=$?
 }
 
 # ... and finally, the last menu. This is the one that shows available titles.
 SubMenuGroup () {
-        X=$(($T/10))
-        Xa=$(($T/10))
-        if [ "$M" = "" ]; then
-          if [ "$C" = "" ]; then
+    X=$(($T/10))
+    Xa=$(($T/10))
+    if [ "$M" = "" ]; then
+        if [ "$C" = "" ]; then
             if [ $X -eq 0 ]; then
                 X=""
             fi
-          fi
         fi
+    fi
 
 # We might as well just do the [b[z]]grep once, instead of up to ten times.
 # we can do a normal grep once we have the file in text form.
@@ -694,35 +702,36 @@ SubMenuGroup () {
 # hmmm... could I replace these with GoCat?
 
 # ZD: Now this is pretty code :)
-        if [ -f $PLACE/rfc$TITLES.txt.bz2 ]; then
-          bzgrep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt.bz2 > $MYFILE
-        elif [ -f $PLACE/rfc$TITLES.txt.gz ]; then
-          zgrep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt.gz > $MYFILE
-        elif [ -f $PLACE/rfc$TITLES.txt ]; then
-          grep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt > $MYFILE
+    if [ -f $PLACE/rfc$TITLES.txt.bz2 ]; then
+        bzgrep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt.bz2 > $MYFILE
+    elif [ -f $PLACE/rfc$TITLES.txt.gz ]; then
+        zgrep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt.gz > $MYFILE
+    elif [ -f $PLACE/rfc$TITLES.txt ]; then
+        grep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt > $MYFILE
+    fi
+#    DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
+    for I in 0 1 2 3 4 5 6 7 8 9; do
+        if [ -f rfc"$M$C$X$I".txt.bz2 ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".txt ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".txt.pdf ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".pdf ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".ps ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+        else
+            D[$I]="N"; B[$I]="$I missing"
         fi
-        for I in 0 1 2 3 4 5 6 7 8 9; do
-          if [ -f rfc"$M$C$X$I".txt.bz2 ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".txt ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".txt.pdf ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".pdf ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".ps ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
-                D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | awk -F\" '{print $2}' )"
-          else
-                D[$I]="N"; B[$I]="$I missing"
-          fi
-        done
-        U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) \
+    done
+    U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) \
         0 rfc"$M$C$X${B[0]}" \
         1 rfc"$M$C$X${B[1]}" \
         2 rfc"$M$C$X${B[2]}" \
@@ -734,86 +743,92 @@ SubMenuGroup () {
         8 rfc"$M$C$X${B[8]}" \
         9 rfc"$M$C$X${B[9]}" \
         2>&1 1>$(tty))
-        retval=$?
+    retval=$?
 }
 
 # This queries the user for a number, feeding it back into $Val for RenderCore
 PromptForNumber() {
-        Val=$( $MyDialog --title "$ME-$Minor.$Revision: $1" --inputbox "What Number? (0-$MAXVAL)" 8 45 \
+    Val=$( $MyDialog --title "$ME-$Minor.$Revision: $1" --inputbox "What Number? (0-$MAXVAL)" 8 45 \
         2>&1 1>$(tty))
-        retval=$?
+    retval=$?
 }
 
 # TODO: I'd LOVE to add the description as a menu entry.
 ChooseList() {
-  MYVAL=${#VarArray[@]}
+    MYVAL=${#VarArray[@]}
 # Here, we have to choose what RFCs I want to choose titles for.
 # Time for a for loop, though I'm commenting it right out of place until I have what I want.
-      echo "" > $MYFILE # clear out the file
+    echo "" > $MYFILE # clear out the file
 #      echo "VarArray[@] is ${VarArray[@]}"
 #      read mumble
-      for this in ${VarArray[@]}; do
+    for this in ${VarArray[@]}; do
         if [ -f $PLACE/rfc$TITLES.txt.bz2 ]; then
-          bzgrep "^RFC$this " $PLACE/rfc$TITLES.txt.bz2 >> $MYFILE
+            bzgrep "^RFC$this " $PLACE/rfc$TITLES.txt.bz2 >> $MYFILE
         elif [ -f $PLACE/rfc$TITLES.txt.gz ]; then
-          zgrep "^RFC$this " $PLACE/rfc$TITLES.txt.gz >> $MYFILE
+            zgrep "^RFC$this " $PLACE/rfc$TITLES.txt.gz >> $MYFILE
         elif [ -f $PLACE/rfc$TITLES.txt ]; then
-          grep "^RFC$this " $PLACE/rfc$TITLES.txt >> $MYFILE
+            grep "^RFC$this " $PLACE/rfc$TITLES.txt >> $MYFILE
         fi
-      done
+    done
       # Now it's time we stripped prepended 0 off the RFC numbers
-      for ((i=0;i<${#VarArray[@]};i++)); do
+    for ((i=0;i<${#VarArray[@]};i++)); do
         VarArray[i]="$(echo ${VarArray[$i]} | sed 's/^0\+//')"
-      done
+    done
 #      read mumble
 #      echo "We have these descriptions:"
 #      cat $MYFILE
       # Now I have to add these descriptions to another array.
 #      DescArray=( $(cat $MYFILE | awk -F\" '{ print $2 }') )
-      O=$IFS
-      IFS=$'\n'
+    O=$IFS
+    IFS=$'\n'
 # ZD: All hail obscurity?
 # I asked for a sed line to give me lines from the first " on a line to the
 # last " on a line, without the ", but with embedded " turned into \"
-# Thanks, ThomasM
-      DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
-      IFS=$O
+# Thanks to ThomasM for this.
+    DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
+    IFS=$O
 #      MYVAL=$(( $MYVAL * 4 ))
-      that=0
+    that=0
       # I have to do some counter magic in here to get the array members correct.
       # Was supposed to be:
 #       for that=0; mumb[that++]="one"; mumb[that++]="two" .... done
       # only, I can't get the counter right
-      for ((this=0;this<MYVAL;this++)) do
+    for ((this=0;this<MYVAL;this++)) do
         # This ought to be 3 for use without --item-help
-        that=$(( $this * 3 )); 
+    that=$(( $this * 3 )); 
 #          munchstring[that++]="$this"
-          munchstring[that++]="${VarArray[$this]}"
+    munchstring[that++]="${VarArray[$this]}"
 #          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\t"
-          munchstring[that++]="${DescArray[$this]}"
+    munchstring[that++]="${DescArray[$this]}"
 #          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\t"
-          munchstring[that++]="off"
+    munchstring[that++]="off"
 #          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\n"
-     done
+    done
 #  echo -ne "Munchstring is: \n${munchstring[@]}"
 #  read mumble
-   declare -a Res
-  Res=($($MyDialog --title "Supplied RFCs" --checklist "Select for viewing" "$MYLINES" 80 $(( $MYLINES - 7 ))  \
-  "${munchstring[@]}"  2>&1 1>$(tty)))
+    declare -a Res
+    Res=($($MyDialog --title "Supplied RFCs" --checklist "Select for viewing" "$MYLINES" 80 $(( $MYLINES - 7 ))  \
+        "${munchstring[@]}"  2>&1 1>$(tty)))
 #  $( for ((i=0;i<MYVAL;i++)) ; do echo -n "${VarArray[$i]} ""'""${DescArray[$i]}""'"" off "  ; done ) \
 #  $(for ((i=0;i<MYVAL;i++)) ; do echo -n "${VarArray[$i]} ${DescArray[$i]} off "; done) \
-  result=$?
+result=$?
 #  echo "${Res[@]}" > $MYFILE
-  if [ $result = 0 ]; then
+                # Bug on dialog > 0.9 fixed - they now output "1" "2" instead
+                # of 1 2
+                # ewps. Is this an array?
+                for ((j=0;j<${#Res[@]};j++)) do
+                Res[$j]=$(echo ${Res[$j]} | tr -d '"')
+              done
+if [ $result = 0 ]; then
     for ((this=0;this<${#Res[@]};this++)) do
 #      Q=${VarArray[$this]}
-      Q="${Res[$this]}"
+    Q="${Res[$this]}"
 #      echo "Got $Q, and VarArray[$this] is ${VarArray[$this]}"
 #      echo "Got $Q for $this, Res#=${#Res[@]} and VarArray[$this] is ${VarArray[$this]}"
 #      read mumble
-      ParseSwitch
+    ParseSwitch
     done
-  fi
+fi
 }
 
 
@@ -824,41 +839,41 @@ ChooseList() {
 #############################################################
 
 ParseLatestList() {
-  local Val
+    local Val
 # First, get "ls " of ftp.rfc-editor.org/in-notes/, stick it in a temp file.
 # If we have got it already this session, don't bother, process straight away.
 # * only place this is weak is if the remote has changed in the time we have
 #   been running this program.
-if [ "$MYGET" ]; then
-  if [ -z "$GotDir" ]; then
-    echo "$ME-$Minor.$Revision: Fetching list - please await results"
-    case $MYGET in 
-      $MYNCGET)
-      $MYNCLS $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
-    *) $MYGET $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
-    esac
-    Val=$?
+    if [ "$MYGET" ]; then
+        if [ -z "$GotDir" ]; then
+            echo "$ME-$Minor.$Revision: Fetching list - please await results"
+            case $MYGET in 
+                $MYNCGET)
+                    $MYNCLS $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
+                *) $MYGET $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
+            esac
+            Val=$?
     # This is where error returns would need tailoring. curl uses 19 for (file not there)
-    case $Val in 
-          0) echo "$ME-$Minor.$Revision: Got list, now munching"
-          GotDir=1 # make sure we don't download again within this program execution
-            MAXREMOTEVAL=$(cat $DIRLIST | grep "rfc[[:digit:]]*.txt" 2>/dev/null | cut -c4- | sort -n | tail -n 1 | cut -d. -f1 ) ;;
-          1) echo "$ME-$Minor.$Revision: Request to $REMOTEPLACE failed - check the firewall, or try again later." ;;
-          2) echo "$ME-$Minor.$Revision: Request to $REMOTEPLACE timed out - try again later." ;;
-          *) echo "$ME-$Minor.$Revision: I struck another error from ncftpls - $Val" ;;
-    esac
-  else
+            case $Val in 
+                0) echo "$ME-$Minor.$Revision: Got list, now munching"
+                    GotDir=1 # make sure we don't download again within this program execution
+                    MAXREMOTEVAL=$(cat $DIRLIST | grep "rfc[[:digit:]]*.txt" 2>/dev/null | cut -c4- | sort -n | tail -n 1 | cut -d. -f1 ) ;;
+                1) echo "$ME-$Minor.$Revision: Request to $REMOTEPLACE failed - check the firewall, or try again later." ;;
+                2) echo "$ME-$Minor.$Revision: Request to $REMOTEPLACE timed out - try again later." ;;
+                *) echo "$ME-$Minor.$Revision: I struck another error from ncftpls - $Val" ;;
+            esac
+        else
     # To make this work for ls -l, we'd have to pipe this through awk or cut, printing off the fourth field
     # Also, ls -l makes for WAY more data than just ls
 
 # ZD: cat on the same line as grep is a nono, grep blah file instead
-    MAXREMOTEVAL=$(cat $DIRLIST | grep "rfc[[:digit:]]*.txt" 2>/dev/null | cut -c4- | sort -n | tail -n 1 | cut -d. -f1 )
-  fi
+            MAXREMOTEVAL=$(grep "rfc[[:digit:]]*.txt" $DIRLIST 2>/dev/null | cut -c4- | sort -n | tail -n 1 | cut -d. -f1 )
+        fi
   # then, grab the largest number from the latest available downloaded list
-else
-  $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
+    else
+        $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
 ncftp3, curl, lynx, or wget installed" 11 50
-fi
+    fi
 }
 
 #########################################################################
@@ -876,14 +891,14 @@ CheckSize() {
 # We also now rely on expect being present - if it's not, then we can't
 # go ahead, and have to fetch files regardless.
 ######################### WARNING ####################################
-if [ "$MYGET" -a "$MYGET" = "$MYNCGET" ]; then
-MyExpect=$(which expect 2>/dev/null)
-if [ -z $MyExpect ]; then
-        build="-index -ref xx00"
-else
+    if [ "$MYGET" -a "$MYGET" = "$MYNCGET" ]; then
+        MyExpect=$(type -p expect 2>/dev/null)
+        if [ -z $MyExpect ]; then
+            build="-index -ref xx00"
+        else
 # Routine begins ...
-MyRemoteSize=$(\
-$MyExpect -c \
+#            MyRemoteSize=$(\
+                $MyExpect -c \
 "spawn ncftp -u anonymous -p $USER@$HOSTNAME $REMOTEPLACE;\
 set timeout $CONTACT_TIMEOUT; \
 expect \"/in-notes > \"; \
@@ -895,25 +910,32 @@ send \"quote size $RFC_FILE2\n\"; \
 send \"quote size $RFC_FILE3\n\"; \
 expect \"/in-notes > \"; \
 send \"set confirm-close no\n\"; \
-send \"close\n\" " | tail -6 | tr -d '\015'
-)
-# ... and routine ends
-RemoteSize1=$(echo "$MyRemoteSize" | head -1)
-RemoteSize2=$(echo "$MyRemoteSize" | tail -4 | head -1)
-RemoteSize3=$(echo "$MyRemoteSize" | tail -2 | head -1)
-SizeRemoteLocal
-fi # finishes off the "if 'expect' exists" loop
+send \"close\n\"" > $MYFILE
+#            )
+echo "Catting expect"
+read mumble
+cat $MYFILE
+echo "<<done>>"
+
+MyRemoteSize=$(cat $MYFILE | tail -6 | tr -d '\015')
+# ... and expect routine ends
+            RemoteSize1=$(echo "$MyRemoteSize" | head -1)
+            RemoteSize2=$(echo "$MyRemoteSize" | tail -4 | head -1)
+            RemoteSize3=$(echo "$MyRemoteSize" | tail -2 | head -1)
+            SizeRemoteLocal
+        fi # finishes off the "if 'expect' exists" loop
  # Finishes the "do we even HAVE a ncftpget" loop.
-elif [ "$MYGET" -a "$MYGET" = "$MYCURL" ]; then
-RemoteSize1=$(curl -I $REMOTEPLACE$RFC_FILE1 2>/dev/null | grep "Length" | cut -c16-)
-RemoteSize2=$(curl -I $REMOTEPLACE$RFC_FILE2 2>/dev/null | grep "Length" | cut -c16-)
-RemoteSize3=$(curl -I $REMOTEPLACE$RFC_FILE3 2>/dev/null | grep "Length" | cut -c16-)
-SizeRemoteLocal
-else
-  $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
+    elif [ "$MYGET" -a "$MYGET" = "$MYCURL" ]; then
+# we can get the filesizes directly with curl
+        RemoteSize1=$(curl -I $REMOTEPLACE$RFC_FILE1 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
+        RemoteSize2=$(curl -I $REMOTEPLACE$RFC_FILE2 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
+        RemoteSize3=$(curl -I $REMOTEPLACE$RFC_FILE3 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
+        SizeRemoteLocal
+    else
+        $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
 ncftp3, or curl installed" 11 50
 # ncftp3, curl, lynx, or wget installed" 11 50
-fi # End of "if myget=mycurl" || if myget=myncget || puke
+    fi # End of "if myget=mycurl" || if myget=myncget || puke
 }
 
 ############################################################
@@ -922,191 +944,214 @@ fi # End of "if myget=mycurl" || if myget=myncget || puke
 SizeRemoteLocal() {
 # Now that we have the remote sizes, what about our copies (if any)?
 # First, we have to GoCat into a temp file, to get the uncompressed size
-  RFCFile=-index
-  GoCat > $MYFILE
-  LocalSize1=$(ls -l $MYFILE | cut -d' ' -f6)
-  RFCFile=-ref
-  GoCat > $MYFILE
-  LocalSize2=$(ls -l $MYFILE | cut -d' ' -f6)
-  RFCFile=xx00
-  GoCat > $MYFILE
-  LocalSize3=$(ls -l $MYFILE | cut -d' ' -f6)
+    RFCFile=-index
+    GoCat > $MYFILE
+    LocalSize1=$(ls -l $MYFILE | cut -d' ' -f6)
+    RFCFile=-ref
+    GoCat > $MYFILE
+    LocalSize2=$(ls -l $MYFILE | cut -d' ' -f6)
+    RFCFile=xx00
+    GoCat > $MYFILE
+    LocalSize3=$(ls -l $MYFILE | cut -d' ' -f6)
 # now we clean up after ourselves
 
 # ZD: Now this shows how dangerous rm -rf can be, what if MYFILE for *SOME* reason is $HOME ?
+# EG: MYFILE is NEVER $HOME, it's always /tmp/rfctemprfc, as shown at the top
+#     of the file 8-)
 # ZD: then you're in trouble, or /? It'll start removing stuff carelessly
-  rm -rf $MYFILE
-  if [ "$LocalSize1" -ne "$RemoteSize1" ]; then
-          build="-index "
-  fi
-  if [ "$LocalSize2" -ne "$RemoteSize2" ]; then
-          build="$build -ref "
-  fi
-  if [ "$LocalSize3" -ne "$RemoteSize3" ]; then
-          build="$build xx00 "
-  fi
+    rm -f $MYFILE
+    if [ "$LocalSize1" -ne "$RemoteSize1" ]; then
+        build="-index "
+    fi
+    if [ "$LocalSize2" -ne "$RemoteSize2" ]; then
+        build="$build -ref "
+    fi
+    if [ "$LocalSize3" -ne "$RemoteSize3" ]; then
+        build="$build xx00 "
+    fi
+    # Now, I need to sort out what the hey is going on
 }
 
 # New function to hopefully fetch all the latest rfc docs
+# TODO: Weakness is: it depends upon $DIRLIST having already been fetched, and 
+#       that it is also the latest available.
 FetchLatest() {
-  $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "This'll take a wee while, please wait after hitting Enter" 11 60
-  CheckSize
+    $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "This'll take a wee while, please wait after hitting Enter" 11 60
+    CheckSize
 # The idea here is that we go from our latest to their latest, and try to download everything in between
 # Of course, we could pass in a value to download FROM and TO.
 # Theoretically, if $build is empty, should we even download a listing? 
 # Yes we should, if we don't have everything they have.
-  ParseLatestList
-  if [ "$MAXVAL" != "$MAXREMOTEVAL" ]; then # note that we do none of this if both values match
+    ParseLatestList
+    if [ "$MAXVAL" != "$MAXREMOTEVAL" ]; then # note that we do none of this if both values match
   # This test should change, because of us missing files that remoteplace has
 # * We now have a new routine for checking sizes of remote files - provides $build
 # realistically, we step backwards by 120 just to catch the stragglers we don't yet have,
 # or go from 1 if we have less than rfc120.*  Only thing this doesn't catch is when we have
 # rfc docs lots later than 120 (like rfc3905 but nothing earlier)
 # We should only download if RemoteSize != LocalSize
-    if [ "$MAXVAL" > 120 ]; then
+        if [ "$MAXVAL" > 120 ]; then
             BOTTOM=$((MAXVAL - 120 ))
-    else
+        else
             BOTTOM=1
-    fi
-    for this in $build $(seq $BOTTOM 1 $MAXREMOTEVAL); do
-      echo -n "checking..."
-      REMOTEFILE=rfc"$this".$DEFEXT
-      grep ^$REMOTEFILE $DIRLIST
-      if [ "$?" = 0 ]; then
-        FetchSingle
-      else
+        fi
+        for this in $build $(seq $BOTTOM 1 $MAXREMOTEVAL); do
+            echo -n "checking..."
+            REMOTEFILE=rfc"$this".$DEFEXT
+            grep ^$REMOTEFILE $DIRLIST
+            if [ "$?" = 0 ]; then
+                FetchSingle
+            else
         #we can't download this one, continue on
-        echo "$ME-$Minor.$Revision: $REMOTEFILE not available, continuing on"
-      fi
-    done
-  fi
+                echo "$ME-$Minor.$Revision: $REMOTEFILE not available, continuing on"
+            fi
+        done
+    fi
 }
 
 FetchSingle() {
 # This routine checks to see if we have it, how about spinning that off to a separate function,
 # much like TestItsHere is supposed to do? We should really strip this function down to
 # purely getting the file, maybe spinning off the compress stage to another function
-      case "$REMOTEFILE" in
-              -menu) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there" ;;
-              -list) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there!" ;;
+    case "$REMOTEFILE" in
+        -menu) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there" ;;
+        -list) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there!" ;;
         rfc-retrieval.txt|rfc-index.txt|rfc-ref.txt|rfcxx00.txt|rfc-index-latest.txt)
         # Should we replace the copy in $PLACE, $INDEX, or $WRITEABLE?
-          ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
-          RetVal=$?
-          if [ $RetVal != "0" ]; then
-              echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
-          else
+#            ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
+            $MYGET $MYGETPARM "$REMOTEPLACE$REMOTEFILE" 
+            RetVal=$?
+            if [ $RetVal != "0" ]; then
+                echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
+            else
 # Now we get rid of the old one...
-            echo -n "$ME-$Minor.$Revision: Removing original compressed file..."
+                echo -n "$ME-$Minor.$Revision: Removing original compressed file..."
 # need a wrapper around this. Ooops - we could concievably delete the wrong one.
-            if [ -f $REMOTEFILE.bz2 ]; then
-              echo -ne "$REMOTEFILE.bz2\n"
-              rm -f $REMOTEFILE.bz2
-            elif [ -f $REMOTEFILE.gz ]; then
-              echo -ne "$REMOTEFILE.gz\n"
-              rm -f $REMOTEFILE.gz
-            fi
+                if [ -f $REMOTEFILE.bz2 ]; then
+                    echo -ne "$REMOTEFILE.bz2\n"
+                    rm -f $REMOTEFILE.bz2
+                elif [ -f $REMOTEFILE.gz ]; then
+                    echo -ne "$REMOTEFILE.gz\n"
+                    rm -f $REMOTEFILE.gz
+                fi
             # Now, what if it's a *.txt we're replacing? Oh, that's right. We
             # just obliterated it with the download 8-)
 # and put the new one into place
-            echo -n "compressing downloaded document"
-            $MYCOMPRESS "$REMOTEFILE"
-            echo "... done"
+                echo -n "compressing downloaded document"
+                $MYCOMPRESS "$REMOTEFILE"
+                echo "... done"
 # All done, time to quit.
-          fi
+            fi
             ;;
         *.txt.pdf)
-          if [ -f "$REMOTEFILE" ]; then
-              $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "We already have $REMOTEFILE" 8 50
-          else # Okay, we don't have it - so go get it
-            echo "Getting $REMOTEPLACE""pdfrfc/$REMOTEFILE - please wait"
-            ncftpget -v "$REMOTEPLACE""pdfrfc/$REMOTEFILE" 
-            RetVal=$?
-            if [ $RetVal != "0" ]; then
-              echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
-            else
-              echo "Okay, got it now"
-              if [ "$this" -gt "$MAXVAL" ]; then
-                MAXVAL=$this
-              fi
+            if [ -f "$REMOTEFILE" ]; then
+                $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "We already have $REMOTEFILE" 8 50
+            else # Okay, we don't have it - so go get it
+                echo "Getting $REMOTEPLACE""pdfrfc/$REMOTEFILE - please wait"
+#                ncftpget -v "$REMOTEPLACE""pdfrfc/$REMOTEFILE" 
+                $MYGET $MYGETPARM "$REMOTEPLACE""pdfrfc/$REMOTEFILE" 
+                RetVal=$?
+                if [ $RetVal != "0" ]; then
+                    echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
+                else
+                    echo "Okay, got it now"
+                    if [ "$this" -gt "$MAXVAL" ]; then
+                        MAXVAL=$this
+                    fi
+                fi
             fi
-          fi
-         ;;
+            ;;
         *.pdf) # discrepancy here - there's *.pdf, and *.txt.pdf
-          if [ -f "$REMOTEFILE" ]; then
-              $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "We already have $REMOTEFILE" 8 50
-          else # Okay, we don't have it - so go get it
-            echo "Getting $REMOTEPLACE$REMOTEFILE - please wait"
-            ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
-            RetVal=$?
-            if [ $RetVal != "0" ]; then
-              REMOTEFILE=rfc$this.txt.pdf
-              echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - now trying $REMOTEPLACE""pdfrfc/$REMOTEFILE"
-              FetchSingle
-            else
-              echo "Okay, got it now"
-              if [ "$this" -gt "$MAXVAL" ]; then
-                MAXVAL=$this
-              fi
+            if [ -f "$REMOTEFILE" ]; then
+                $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "We already have $REMOTEFILE" 8 50
+            else # Okay, we don't have it - so go get it
+                echo "Getting $REMOTEPLACE$REMOTEFILE - please wait"
+#                ncftpget -v "$REMOTEPLACE$REMOTEFILE"
+                $MYGET $MYGETPARM "$REMOTEPLACE$REMOTEFILE"
+                RetVal=$?
+                if [ $RetVal != "0" ]; then
+                    REMOTEFILE=rfc$this.txt.pdf
+                    echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - now trying $REMOTEPLACE""pdfrfc/$REMOTEFILE"
+                    FetchSingle
+                else
+                    echo "Okay, got it now"
+                    if [ "$this" -gt "$MAXVAL" ]; then
+                        MAXVAL=$this
+                    fi
+                fi
             fi
-          fi
-          ;;
+            ;;
         *) if [ -f "$REMOTEFILE.bz2" ]; then
 # Too wordy - a box I have to confirm rather than it just continuing on.
 # How about an error log? Or log full stop (not just for errors)?
-              echo "$ME-$Minor.$Revision: We already have $REMOTEFILE.bz2"
-          elif [ -f "$REMOTEFILE.gz" ]; then
-              echo "$ME-$Minor.$Revision: We already have $REMOTEFILE.gz"
-          elif [ -f "$REMOTEFILE" ]; then
-              echo "$ME-$Minor.$Revision: We already have $REMOTEFILE"
-          else # Okay, we don't have it - so go get it
+            echo "$ME-$Minor.$Revision: We already have $REMOTEFILE.bz2"
+            elif [ -f "$REMOTEFILE.gz" ]; then
+            echo "$ME-$Minor.$Revision: We already have $REMOTEFILE.gz"
+            elif [ -f "$REMOTEFILE" ]; then
+            echo "$ME-$Minor.$Revision: We already have $REMOTEFILE"
+            else # Okay, we don't have it - so go get it
             if [ "$MYGET" ]; then
-              echo "Getting $REMOTEPLACE$REMOTEFILE - please wait"
+                echo "Getting $REMOTEPLACE$REMOTEFILE - please wait"
               # oooo - this has to be replaced with $MYGET
-              ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
-              RetVal=$?
+                $MYGET $MYGETPARM "$REMOTEPLACE$REMOTEFILE" 
+                RetVal=$?
 # 'Nother random thought - how about a TellGet() to tell us what happened (if anything)?
 # It'd be customised per invocation - i.e. curl returns differently than lynx/wget/ncftpget
-              if [ $RetVal != "0" ]; then
-                echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
-              else
+                if [ $RetVal != "0" ]; then
+                    echo "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
+                else
 # We should only bzip2 if it's txt, not otherwise - could be conflict with *.txt.pdf, however, that's 
 # covered in the above case
-                if [ "$DEFEXT" = "txt" ]; then
-                  $MYCOMPRESS "$REMOTEFILE"
-                fi
+                    if [ "$DEFEXT" = "txt" ]; then
+                        $MYCOMPRESS "$REMOTEFILE"
+                    fi
 # All done, time to quit. Should we update MAXVAL here if it's shifted?
-                echo "Okay, got it now"
-                if [ "$this" -gt "$MAXVAL" ]; then
-                  MAXVAL=$this
+                    echo "Okay, got it now"
+                    if [ "$MAXVAL" ]; then
+                      if [ "$this" -gt "$MAXVAL" ]; then
+                        MAXVAL=$this
+                      fi
+                    else
+                      MAXVAL=$this
+                    fi
                 fi
-              fi
-              shift # Now that we have it (or not), we can move on
+                shift # Now that we have it (or not), we can move on
             else
-              $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
+                $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
 ncftp3, curl, lynx, or wget installed" 11 50
             fi
-          fi
-          ;;
-      esac
+            fi
+            ;;
+    esac
 } # End of FetchSingle
 
 FetchRange() {
 # Realistically, I can probably call FetchSingle for each item in range
 # For THIS to work properly, $THAT absolutely MUST be valid on entry!
-Val=-get
+# ERROR: this doesn't work if we don't have a $DIRLIST downloaded, and
+#        is incorrect if we don't have the latest dirlist.
+# Besides which, if we're going to be fetching from the site, might as well get
+# the most recent.
+    Val=-get
+    if [ -z "$GotDir" ]; then
+# This is where we get that dir
+      $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "This'll take a wee while, please wait after hitting Enter" 11 60
+      # I'm not sure about whether this is correct/needed, so I'm going with a guess.
+      CheckSize
+      ParseLatestList
+    fi
 # ZD: Use meaningful variable names
-for ((this=$THIS;this<=$THAT;this++)); do
-  REMOTEFILE=rfc"$this".$DEFEXT
-  # We recurse... why not?
-  grep ^$REMOTEFILE $DIRLIST
-  if [ "$?" = 0 ]; then
-    FetchSingle
-  else
+    for ((this=$THIS;this<=$THAT;this++)); do
+        REMOTEFILE=rfc"$this".$DEFEXT
+  # We recurse... why not? And by now, we ought to have a DirList
+        grep ^$REMOTEFILE $DIRLIST
+        if [ "$?" = 0 ]; then
+            FetchSingle
+        else
     #we can't download this one, continue on
-  echo "$ME-$Minor.$Revision: $REMOTEFILE not available, continuing on"
-  fi
-done
+            echo "$ME-$Minor.$Revision: $REMOTEFILE not available, continuing on"
+        fi
+    done
 
 }
 
@@ -1117,73 +1162,78 @@ done
 # One important thing: what dir are we in?
 #########################################################
 FetchCore() {
-  case $Q in
-    -get)
+    case $Q in
+        -get|--get)
     # This should be restricted to those that have write permission
     # to the dir the rfcs are held in.
-    if [ "$MYGET" ]; then
-      THIS=$( echo $REST | cut -d' ' -f1 )
-      this=$THIS
-      REMOTEFILE=rfc$this.$DEFEXT
+            if [ "$MYGET" ]; then
+                THIS=$( echo $REST | cut -d' ' -f1 )
+                this=$THIS
+                REMOTEFILE=rfc$this.$DEFEXT
 # We have to be in a writeable dir before we allow downloading
-      if [ "$WRITEABLE" ]; then
-        TestItsHere # checks it's in $PLACE
-        if [ "$NOTHERE" = "0" ]; then # We've found it
-          echo "We have $REMOTEFILE, as $PLACE/$mumble already"
-        else # check the other dir to see if it exists already
-          OLDPLACE=$PLACE
-          PLACE=$WRITEABLE
-          cd $PLACE
-          TestItsHere
-          if [ "$NOTHERE" = "0" ]; then
+                if [ "$WRITEABLE" ]; then
+                    TestItsHere # checks it's in $PLACE
+                    # Maybe we ought to provide a --force switch for this
+                    if [ "$NOTHERE" = "0" ]; then # We've found it
+                        echo "We have $REMOTEFILE, as $PLACE/$mumble already"
+                      # fetch if we force it
+                        if [ $FORCEGET ]; then
+                          FetchSingle
+                        fi
+                    else # check the other dir to see if it exists already
+                        OLDPLACE=$PLACE
+                        PLACE=$WRITEABLE
+                        cd $PLACE
+                        TestItsHere
+                        if [ "$NOTHERE" = "0" ]; then
 # We've found it
-            echo "We have $REMOTEFILE, as $PLACE/$mumble already"
-          else
-            FetchSingle # this is in $WRITEABLE now
+                            echo "We have $REMOTEFILE, as $PLACE/$mumble already"
+                        else
+                            FetchSingle # this is in $WRITEABLE now
 # Now, do we need to update MAXVAL? We can't do it here, as FetchSingle handles both success and failure
 # ... so, we have to do it within FetchSingle
-          fi
-          cd $OLDPLACE
+                        fi
+                        cd $OLDPLACE
 # We have it already, no need to download, msg user to say so
-        fi
+                    fi
 # This fails the "check it's here already in $OLDPLACE" test
-      else # bitchmoan
-        $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
+                else # bitchmoan
+                    $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
 You don't have permission to write to the directory." 11 50
-      fi
-    else
-      $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
+                fi
+            else
+                $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
 ncftp3, curl, lynx, or wget installed" 11 50
-    fi # End of "if $myget"
-          ;;
-    -getrange)
-      THIS=$( echo $REST | cut -d' ' -f1 )
-      THAT=$( echo $REST | cut -d' ' -f2 )
-    if [ "$WRITEABLE" ]; then
-          FetchRange
-    else # bitchmoan
-      $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
+            fi # End of "if $myget"
+            ;;
+        -getrange|--getrange)
+            THIS=$( echo $REST | cut -d' ' -f1 )
+            THAT=$( echo $REST | cut -d' ' -f2 )
+            if [ "$WRITEABLE" ]; then
+                FetchRange
+            else # bitchmoan
+                $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
 You don't have permission to write to the directory." 11 50
-    fi
-          ;;
-    -getlatest)
-    if [ "$WRITEABLE" ]; then
-       FetchLatest
-    else # bitchmoan
-      $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
+            fi
+            ;;
+        -getlatest|--getlatest)
+            if [ "$WRITEABLE" ]; then
+                FetchLatest
+            else # bitchmoan
+                $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I can't download to $PLACE\n\
 You don't have permission to write to the directory." 11 50
-    fi
-          ;;
-    -version|--version|-v)
-      echo "I am $ME, revision $Minor.$Revision"
-      menulevel=0
-    ;;
-    *) 
+            fi
+            ;;
+        -version|--version|-v)
+            echo "I am $ME, revision $Minor.$Revision"
+            menulevel=0
+            ;;
+        *) 
     #ZD: could be more informative
-          echo "Why am I here in FetchCore? Hit Enter to continue"
-          read mumble
-          ;;
-  esac
+            echo "Why am I here in FetchCore? Hit Enter to continue"
+            read mumble
+            ;;
+    esac
 }
 
 ################## End of fetching code #########################
@@ -1192,223 +1242,263 @@ You don't have permission to write to the directory." 11 50
 # This is the new code to replace all the previous code in the previous func.
 # (... whatever that was called...)
 ParseSwitch() {
-case $Q in
+    case $Q in
 # Fetch
--get|--get|-getrange|--getrange|-getlatest|--getlatest) 
-  Val=$Q
-  FetchCore
-  ;;
+        -get|--get|-getrange|--getrange|-getlatest|--getlatest) 
+            Val=$Q
+            FetchCore
+            ;;
+        --forceget)
+            FORCEGET=1
+            ;;
 # Toggle
--pdf|-ps|-txt|-stdout|--pdf|--ps|--txt|--stdout)
-  DEFEXT=$(echo $Q | cut -c2-)
-  if [ "$DEFEXT" = "stdout" ]; then
-    STDOUT=1
-    DEFEXT=txt
-  fi
-  ;;
--no|--no) # tells me you don't want to create a writeable dir to download to
-  NOMAKELOCALDIR=1
-  ;;
--version|-v|--version)
-  Val=$Q
-  FetchCore
-  ;;
+        -pdf|-ps|-txt|-stdout)
+            DEFEXT=$(echo $Q | cut -c2- )
+            if [ "$DEFEXT" = "stdout" ]; then
+                STDOUT=1
+                DEFEXT=txt
+            fi
+            ;;
+        --pdf|--ps|--txt|--stdout)
+            DEFEXT=$(echo $Q | cut -c3- )
+            if [ "$DEFEXT" = "stdout" ]; then
+                STDOUT=1
+                DEFEXT=txt
+            fi
+            ;;
+        -no|--no) # tells me you don't want to create a writeable dir to download to
+            NOMAKELOCALDIR=1
+            ;;
+        -version|-v|--version)
+            Val=$Q
+            FetchCore
+            ;;
 # Prompt
--menu|--menu)
+        -menu|--menu)
  # This is the little weenie I need to troubleshoot - it seems $menulevel
  # gets set from TaskSelect, but not otherwise. So let's go set it from main
  # I don't yet know what the weak point is of this.
-  MenuCore
-  if [ "$menulevel" -gt "1" ]; then
-  RenderCore
-  menulevel=1
-  fi
-  ;;
--front|--front)
-  TaskSelect
-;;
--exit|--exit)
+            MenuCore
+            if [ "$menulevel" -gt "1" ]; then
+                RenderCore
+                menulevel=1
+            fi
+            ;;
+        --itemlist|-itemlist)
+          ItemList
+          if [ "$retval" -eq 0 ]; then
+            RenderCore
+          else
+            menulevel=0
+          fi
+          ;;
+        -front|--front)
+            TaskSelect
+            ;;
+        -exit|--exit)
 # This could break the "single exit" rule
-exit
-;;
--prompt|--prompt)
-  PromptForNumber Number # returns number in Val
-  DeadYet
-  if [ "$menulevel" -gt 0 ]; then
-  MYLINES=$MYY
-  PREVREST="$REST"
-  REST="$( echo $Val| cut -d' ' -s -f2- ) $REST"
-  AllVal="$Val"
-  Val="$( echo $AllVal | cut -d' ' -f1 )"
+            exit
+            ;;
+        -prompt|--prompt)
+            PromptForNumber Number # returns number in Val
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                MYLINES=$MYY
+                PREVREST="$REST"
+                REST="$( echo $Val| cut -d' ' -s -f2- ) $REST"
+                AllVal="$Val"
+                Val="$( echo $AllVal | cut -d' ' -f1 )"
 #    $MyDialog --title "$ME-$Minor.$Revision:1 debug" --msgbox "Val: $Val\n\
 #AllVal: $AllVal" 11 60
-  while [ "$Val" ]; do
-    AllVal=$(echo $AllVal | cut -d' ' -s -f2-)
-    Q="$Val"
+                while [ "$Val" ]; do
+                  AllVal=$(echo $AllVal | cut -d' ' -s -f2-)
+                  Q="$Val"
 # This works when we don't pass through switches...
 # When we pass through switches, it acts on those, but doesn't
 # properly pop off the args TO those switches, so I had to build
 # in another looping
-    ParseSwitch
-    case $Val in
-      -range|--range) 
-        Val="$( echo $AllVal | cut -d' ' -f4 )"
-    ;;
-      *)
-        Val="$( echo $AllVal | cut -d' ' -f2 )"
-    ;;
-    esac
+                  ParseSwitch
+                  case $Val in
+                   -range|--range) 
+                      Val="$( echo $AllVal | cut -d' ' -f4 )"
+                   ;;
+                   *)
+                      Val="$( echo $AllVal | cut -d' ' -f2 )"
+                   ;;
+                  esac
 #    $MyDialog --title "$ME-$Minor.$Revision:2 debug" --msgbox "Val: $Val\n\
 #AllVal: $AllVal" 11 60
-  done
+                done
   # Now that we've finished, let's restore the original
-  REST="$PREVREST"
-  Q=-prompt
-  fi # end of "if menulevel > 0" test
-  ;;
+                REST="$PREVREST"
+                Q=--prompt
+            fi # end of "if menulevel > 0" test
+            ;;
 # Render
--help|--help|-h|"-?")
-    RfcHelp > $MYFILE
+        -help|--help|-h|"-?")
+            RfcHelp > $MYFILE
 #    MYLINES=$(($( cat $MYFILE | wc -l ) + 7 ))
-    MYLINES=$MYY
-    RfcEngine
-;;
--listall|--listall|--list|-list) # I gave up on the idea of only showing 
+            MYLINES=$MYY
+            RfcEngine
+            ;;
+        -listall|--listall|--list|-list) # I gave up on the idea of only showing 
 # *.DEFEXT
 # 'nother idea is that we prompt for mask, show those files only. <Enter> means *
-for this in $( ls  rfc[[:digit:]]* rfc{-index,-ref,xx00}.txt.bz2 rfc[[:digit:]]*.pdf rfc[[:digit:]]*.txt.pdf rfc[[:digit:]]*.txt.ps | cut -c4- | sort -n ); do
-  echo "rfc$this"; done > $MYFILE 2>/dev/null
-  MASK=$(dialog --title "$ME-$Minor.$Revision: query" --inputbox "Filemask" 11 "$MYX" "*" 2>&1 1>$(tty))
-  grep "rfc$MASK.*" $MYFILE > $MYFILE2
-  mv -f $MYFILE2 $MYFILE
-  column $MYFILE > $MYFILE2
-  mv -f $MYFILE2 $MYFILE
-    MYLINES=$MYY
-    RfcEngine
-;;
--search|--search)
+            for this in $( ls  rfc[[:digit:]]*.txt* rfc{-index,-ref,xx00}.txt* rfc[[:digit:]]*.p{df,s}  | cut -c4- | sort -n ); do
+                echo "rfc$this"; done > $MYFILE 2>/dev/null
+            MASK=$(dialog --title "$ME-$Minor.$Revision: query" --inputbox "Filemask" 11 "$MYX" "*" 2>&1 1>$(tty))
+            grep "rfc$MASK.*" $MYFILE > $MYFILE2
+            mv -f $MYFILE2 $MYFILE
+            column $MYFILE > $MYFILE2
+            mv -f $MYFILE2 $MYFILE
+            MYLINES=$MYY
+            RfcEngine
+            ;;
+        -search|--search)
   # if we don't have a $2, then we should prompt for it
-  if [ -z "$2" ]; then
-    keyword=$($MyDialog --title "$ME-$Minor.$Revision: query" --inputbox "Search Term" 11 "$MYX" 2>&1 1>$(tty))
-    retval=$?
-    DeadYet
-  else
-    keyword="$2"
-  fi
-  Search
-  mumble=$(( $(cat $MYFILE | wc -l ) + 7 ))
-  if [ "$MYY" -lt "$mumble" ]; then
-    MYLINES=$MYY
-  else
-    MYLINES=$mumble
-  fi
+            if [ -z "$2" ]; then
+                keyword=$($MyDialog --title "$ME-$Minor.$Revision: query" --inputbox "Search Term" 11 "$MYX" 2>&1 1>$(tty))
+                retval=$?
+                DeadYet
+            else
+                keyword="$2"
+            fi
+            Search
+            mumble=$(( $(cat $MYFILE | wc -l ) + 7 ))
+            if [ "$MYY" -lt "$mumble" ]; then
+                MYLINES=$MYY
+            else
+                MYLINES=$mumble
+            fi
   # We gotta go build VarArray from that file BEFORE we delete the damn thing
   # That's going to be tricky
-  VarArray=( $(cat $MYFILE) )
+            VarArray=( $(cat $MYFILE) )
   # Okay, if we have no returns, we should say so.
-  if [ "${#VarArray[@]}" -lt 1 ]; then
-    $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Sorry, no results found" 11 35 2>&1 1>$(tty)
-  else
+            if [ "${#VarArray[@]}" -lt 1 ]; then
+                $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Sorry, no results found" 11 35 2>&1 1>$(tty)
+            else
 #  RfcEngine
   # now we present the user with a set of RFCs to go read.
-    ChooseList
-  fi
-;;
--title|--title)
+                ChooseList
+            fi
+            ;;
+        -title|--title)
   # if we don't have a $2, then we should prompt for it
-  Q=-title
-  if [ -z "$2" ]; then
-    PromptForNumber TitleSearch
-    DeadYet
-    keyword=$Val
-  else
-    keyword="$2"
-  fi
-  SearchTitle
-  mumble=$(( $(cat $MYFILE | wc -l ) + 7 ))
-  if [ "$MYY" -lt "$mumble" ]; then
-    MYLINES=$MYY
-  else
-    MYLINES=$mumble
-  fi
-  RfcEngine
-;;
--ref)
+            Q=--title
+            if [ -z "$2" ]; then
+                PromptForNumber TitleSearch
+                DeadYet
+                keyword=$Val
+            else
+                keyword="$2"
+            fi
+            SearchTitle
+            mumble=$(( $(cat $MYFILE | wc -l ) + 7 ))
+            if [ "$MYY" -lt "$mumble" ]; then
+                MYLINES=$MYY
+            else
+                MYLINES=$mumble
+            fi
+            RfcEngine
+            ;;
+        -ref)
 # We need to check both $INDEX and $WRITEABLE as well as $PLACE
-  Val=$Q
-  RenderCore
-;;
+            Val=$Q
+            RenderCore
+            ;;
 # This switch could have REST 'shift'ed after each invocation
 # That would remove the necessity of shifting at 'main' stage
 # However, let's let the calling parent handle this for the moment.
--range|--range)
-  PrevVal="$Val"
-  THIS=$( echo $REST | cut -d' ' -f1 )
-  THAT=$( echo $REST | cut -d' ' -f2 )
-  for ((this=$THIS;this<=$THAT;this++)); do
-    Val=$this
-    RenderCore
-  done
-  Val="$PrevVal"
-;;
-'') TaskSelect ;;
-*) # We're going to assume (perhaps incorrectly) that we now only have numbers left
+        -range|--range)
+            PrevVal="$Val"
+            THIS=$( echo $REST | cut -d' ' -f1 )
+            THAT=$( echo $REST | cut -d' ' -f2 )
+            for ((this=$THIS;this<=$THAT;this++)); do
+                Val=$this
+                RenderCore
+            done
+            Val="$PrevVal"
+            ;;
+        '') TaskSelect ;;
+        -index|--index) 
+        Val=-index
+        MYLINES=$MYY
+        RenderCore
+        ;;
+        *) # We're going to assume (perhaps incorrectly) that we now only have numbers left
 # Actually, this doesn't work in the case of -index/-ref/xx00 - they'll only be
 # looked for in $PLACE
-  Val=$Q
+            Val=$Q
+            # This removes any "rfc" or "0" prefixed to the element
+            ZeroStrip
+            MYLINES=$MYY
+            RenderCore
+            ;;
+    esac
+}
+
+ItemList() {
+  MYLINES=12
+  munchstring=("-index" "rfc-index" "on" "-ref" "rfc-ref" "off" "xx00" "rfcxx00" "off" "1543" "rfc-instructions" "off" "-retrieval" "rfc-retrieval" "off" )
+  Val=$($MyDialog --title "Supplied RFCs" --radiolist "Select for viewing" "$MYLINES" 80 $(( $MYLINES - 7 ))  "${munchstring[@]}"  2>&1 1>$(tty))
+  retval=$?
   MYLINES=$MYY
-  RenderCore
-  ;;
-esac
+}
+
+######################
+# This strips off zeros off the front of the parameter
+ZeroStrip() {
+  Val=$(echo $Val | sed 's/^rfc//')
+  Val=$(echo $Val | sed 's/^0\+//')
 }
 
 blah() {
-        echo "Oy! He hasn't coded $@ yet! Bug him! Hit Enter to continue..."
-        read mumble
+    echo "Oy! He hasn't coded $@ yet! Bug him! Hit Enter to continue..."
+    read mumble
 }
 
 # This routine finds a file, cats it to stdout if present
 GoCat() {
-        case $DEFEXT in 
-                pdf) 
-        if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
+    case $DEFEXT in 
+        pdf) 
+            if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.$DEFEXT.bz2
-        elif [ -f $PLACE/rfc$RFCFile.txt.pdf.bz2 ]; then
+            elif [ -f $PLACE/rfc$RFCFile.txt.pdf.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.txt.pdf.bz2
         # This finds both .txt.gz and .ps.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
                 zcat $PLACE/rfc$RFCFile.$DEFEXT.gz
-        elif [ -f $PLACE/rfc$RFCFile.txt.$DEFEXT.gz ]; then
+            elif [ -f $PLACE/rfc$RFCFile.txt.$DEFEXT.gz ]; then
                 zcat $PLACE/rfc$RFCFile.txt.$DEFEXT.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
                 cat $PLACE/rfc$RFCFile.$DEFEXT
-        fi
-                ;;
-                txt)
-        if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
+            fi
+            ;;
+        txt)
+            if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.$DEFEXT.bz2
-        elif [ -f $PLACE/rfc$RFCFile.txt.bz2 ]; then
+            elif [ -f $PLACE/rfc$RFCFile.txt.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.txt.bz2
         # This finds both .txt.gz and .ps.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
                 zcat $PLACE/rfc$RFCFile.$DEFEXT.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
                 cat $PLACE/rfc$RFCFile.$DEFEXT
-        fi
-                ;;
-                ps)
-        if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
+            fi
+            ;;
+        ps)
+            if [ -f $PLACE/rfc$RFCFile.$DEFEXT.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.$DEFEXT.bz2
-        elif [ -f $PLACE/rfc$RFCFile.txt.bz2 ]; then
+            elif [ -f $PLACE/rfc$RFCFile.txt.bz2 ]; then
                 bzcat $PLACE/rfc$RFCFile.txt.bz2
         # This finds both .txt.gz and .ps.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT.gz ]; then
                 zcat $PLACE/rfc$RFCFile.$DEFEXT.gz
-        elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
+            elif [ -f $PLACE/rfc$RFCFile.$DEFEXT ]; then
                 cat $PLACE/rfc$RFCFile.$DEFEXT
-        fi
-                ;;
-        esac
+            fi
+            ;;
+    esac
 }
 
 # Borrowed a bit of perl code from the other rfc program out there,
@@ -1446,14 +1536,14 @@ Search() {
 # First, we have to have an index to search...
 # Coma mentioned this ought to work for gz too
 # Perhaps a routine like GoCat() > $MYFILE?
-RFCFile=-index
+    RFCFile=-index
 # How about changing to $INDEX first? That would handle well.
 #cd $INDEX
-GoCat > $MYFILE
-indexpath=$MYFILE
+    GoCat > $MYFILE
+    indexpath=$MYFILE
 # $lookingfor ought to be passed into this routine, or else
 # it simply won't work.
-perl -e '
+    perl -e '
   {
     my $filename = $ARGV[0];
     shift @ARGV;
@@ -1495,17 +1585,17 @@ perl -e '
   }
 ' $MYFILE "$keyword" > $MYFILE2
 # No need for the index any more, might as well replace it with our target results
-mv -f $MYFILE2 $MYFILE
+    mv -f $MYFILE2 $MYFILE
 # Here, we had better build VarArray for later ChooseList() function
 #cd $PLACE
 }
 
 SearchTitle() {
-RFCFile=-index
+    RFCFile=-index
 #cd $INDEX
-GoCat > $MYFILE
-indexpath=$MYFILE
-perl -e '
+    GoCat > $MYFILE
+    indexpath=$MYFILE
+    perl -e '
     $indexpath = $ARGV[0];
     shift @ARGV;
     $_ = join " ", @ARGV;
@@ -1534,15 +1624,15 @@ open (RFCINDEX, $indexpath);
 }
 close (RFCINDEX);
 ' $MYFILE $keyword > $MYFILE2
-mv -f $MYFILE2 $MYFILE
+    mv -f $MYFILE2 $MYFILE
 #cd $PLACE
 }
 
 ############## trial code ###########################
 FeedQREST () {
-Q=$1
-shift
-REST=$@
+    Q=$1
+    shift
+    REST=$@
 }
 
 ############## trial code ###########################
@@ -1563,50 +1653,53 @@ MYY=${MYSIZE% *}
 MYX=$(( ${MYSIZE##* } - 2 ))
 MYX=$( echo $(($MYX - 2 )) )
 if [ $MYX -gt 78 ]; then
-  MYLISTX=78
+    MYLISTX=78
 else
-  MYLISTX=$MYX
+    MYLISTX=$MYX
 fi
 trap ReSize SIGWINCH
 # end of size-related stuff.
 #########
+# Should I also trap Ctl-C too?
+#########
 
 noexit=1 # This is a noexit var - if it goes to 0, we leave. Simple, eh?
 # Test for these two regardless
-MyWHIPTAIL=$(which whiptail 2>/dev/null)
-MyCDialog=$(which dialog 2>/dev/null)
+MyWHIPTAIL=$(type -p whiptail 2>/dev/null)
+MyCDialog=$(type -p dialog 2>/dev/null)
 if [ $DISPLAY ]; then
 	#ZD: Use xmsg
 # To save time, I'll only look for a [x|g]dialog if we're on X
-  MyGDialog=$(which gdialog 2>/dev/null)
-  MyXDialog=$(which Xdialog 2>/dev/null)
-  MyKDialog=$(which kdialog 2>/dev/null)
+    MyGDialog=$(type -p gdialog 2>/dev/null)
+    MyXDialog=$(type -p Xdialog 2>/dev/null)
+    MyKDialog=$(type -p kdialog 2>/dev/null)
   # We can't give even preference, we have to choose one or the other
-  MyWMDialog=${MyGDialog:-$MyKDialog}
+    MyWMDialog=${MyGDialog:-$MyKDialog}
   # Use Xdialog if we have neither Gdialog nor kdialog
-  MyTestXDialog=${MyWMDialog:-$MyXDialog}
+    MyTestXDialog=${MyWMDialog:-$MyXDialog}
   # Use cdialog or whiptail if we have no X dialog
-  MyTestCDialog=${MyCDialog:-$MyWHIPTAIL}
-  MyDialog=${MyTestXDialog:-$MyTestCDialog}
+    MyTestCDialog=${MyCDialog:-$MyWHIPTAIL}
+#    MyTestCDialog=${MyCDialog}
+    MyDialog=${MyTestXDialog:-$MyTestCDialog}
 else
-  MyDialog=${MyCDialog:-$MyWHIPTAIL}
+    MyDialog=${MyCDialog:-$MyWHIPTAIL}
 fi
 # IS there a dialog on the system?
 
 # This bit checks for whether we HAVE one...
 if [ ! "$MyDialog" ]; then
-        echo "$ME-$Minor.$Revision: uh oh! No gdialog/kdialog/Xdialog, and no dialog/whiptail program"
-        echo "on this system. I have to bail now, sorry"
+    echo "$ME-$Minor.$Revision: uh oh! No gdialog/kdialog/Xdialog, and no dialog/whiptail program"
+    echo "on this system. I have to bail now, sorry"
 # I'm sure we can be forgiven for bailing early
-        noexit=0
-        Q=-exit
-        ParseSwitch
+    noexit=0
+    Q=--exit
+    ParseSwitch
 fi
 # Lines borrowed from somewhere else
 # Interesting point - STDOUT hasn't even been SET here yet
 # echo "Starting setup - hit Enter to continue"; read shyte
 if [ "$STDOUT" ]; then
-  echo "Please wait while I set up."
+    echo "Please wait while I set up."
 #else
 #  if [ "$MyDialog" = "$MyKDialog" ]; then 
 #    $MyDialog --title "$ME-$Minor.$Revision: Info" --msgbox "Hit Enter (or click OK) and wait while I set up" 7 30
@@ -1616,33 +1709,33 @@ if [ "$STDOUT" ]; then
 fi
 sleep 1
 if [ -z "$MYGET" ]; then
-        $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
+    $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
 to fetch files with! Go grab a copy of one of\n\
 these programs, and install it:\n\
-ncftp3, curl, lynx, or wget" 12 50
+ncftp3, curl, or wget" 12 50
 fi
 # Errors for missing grep programs
 if [ -z "$MYGREP" ]; then 
 # we bail, regardless of if we have bzgrep/zgrep or not, as 
 # these both use grep as a backend
-  $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
+    $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
 to grep files with! Go grab a copy of grep\n\
 and install it:\n\
 I'm out of here!" 12 50
-  noexit=0
-  Q=-exit
-  ParseSwitch
+    noexit=0
+    Q=--exit
+    ParseSwitch
 # .. however, if we have grep, but no bzgrep/zgrep we bail, though we could compose a
 # routine to do the job, I'm not doing it at the moment, merely bailing.
 elif [ -z "$MYCGREP" ]; then
-  $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
+    $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
 to grep compressed files with! Go grab a copy\n\
 of bzgrep (comes with recent bzip2) and zgrep\n\
 (comes with gzip) and install them:\n\
 I'm out of here!" 12 50
-  noexit=0
-  Q=-exit
-  ParseSwitch
+    noexit=0
+    Q=--exit
+    ParseSwitch
 fi
 ######################################################################
 # This routine tests whether a dir can be read (exists, currently),
@@ -1651,19 +1744,19 @@ fi
 # in INDEX
 ######################################################################
 for item in "$@"; do
-  if [ "$item" = "-no" ]; then
-    NOMAKELOCALDIR=1
-  fi
+    if [ "$item" = "-no" ]; then
+        NOMAKELOCALDIR=1
+    fi
 done
 for TESTPLACE in $PLACES; do
-  if [ -d "$TESTPLACE" -a -r "$TESTPLACE" ]; then
+    if [ -d "$TESTPLACE" -a -r "$TESTPLACE" ]; then
 # Small problem: the second time through, PLACE gets set to this, regardless
 # of the fact we may have found a readable PLACE already. It will only be
 # aggravated by additional entries in $PLACES
-    PLACE=${PLACE:-$TESTPLACE} # set it if it's not already set...otherwise don't set it again.
-    mumble=1
+        PLACE=${PLACE:-$TESTPLACE} # set it if it's not already set...otherwise don't set it again.
+        PlaceIsSet=1
 # Okay, we've found one - now, can we write to it?
-    if [ -w "$TESTPLACE" -a -z "$WRITEABLE" ]; then
+if [ -w "$TESTPLACE" -a -z "$WRITEABLE" ]; then
 # this fails in the case where both global AND local dirs are writable...
 # as it will choose the global over the local.
 # This also means that we now have to choose up to two places to check for rfcs
@@ -1671,83 +1764,93 @@ for TESTPLACE in $PLACES; do
 # + all done now.
 # While we're at it, we'd better change the place we check the index in.
 # This will (or ought to be) relevant for -ref,xx00 too.
-      INDEX=$TESTPLACE
-      WRITEABLE=$TESTPLACE
-    fi
-  fi
+    INDEX=$TESTPLACE
+    WRITEABLE=$TESTPLACE
+fi
+fi
 done
-if [ ! "$mumble" ]; then
+if [ ! "$PlaceIsSet" ]; then
   # We should now offer the user a chance to create their own rfc dir, as we've looked in a
-  # number of places for likely content.
-  $MyDialog --title "$ME-$Minor.$Revision: question" --yesno "I haven't found a directory that you\n\
-can read that has RFCs in.\n\
+  # number of places for likely content. We'd better make this a No by
+  # default, so the user doesn't nuke stuff they have already
+  if [ "$MyDialog" = "$MyKDialog" ]; then 
+    dialogopt=""
+  elif [ "$MyDialog" = "$MyGDialog" ]; then
+    dialogopt=""
+  else
+    dialogopt="--defaultno "
+  fi
+    $MyDialog --title "$ME-$Minor.$Revision: question" $dialogopt --yesno "I haven't found a directory that you\
+can read that has RFCs in.\
 I've looked in these places here:\n\
   $PLACES,\n\
 but I'm not finding what I want.\n\
 Do you want to create the directory\n\
   $HOME/rfc\n
 so you can download documents locally (y/N)" 13 50
-  if [ "$?" = 0 ]; then
-    mkdir $HOME/rfc
+    if [ "$?" = 0 ]; then
+        mkdir $HOME/rfc
     # ZD: did it fail?
-    ret=$?
-    if [ "$ret" != "0" ]; then
-	    echo "ERROR: mkdir $HOME/rfc failed with return value: $ret"
-    fi
+        ret=$?
+        if [ "$ret" != "0" ]; then
+            echo "ERROR: mkdir $HOME/rfc failed with return value: $ret"
+      # read-only home dir? Hmmm...
+            noexit=0
+            Q=--exit
+            ParseSwitch
+        fi
     # ZD: --end addition--
-    PLACE=$HOME/rfc
-    INDEX=$HOME/rfc
-    WRITEABLE=$HOME/rfc
-  else
-    echo "Hit Enter to quit program"
-  read mumble
+        PLACE=$HOME/rfc
+        INDEX=$HOME/rfc
+        WRITEABLE=$HOME/rfc
+    else
 # I'm sure you'll forgive me if I exit
-  noexit=0
-  Q=-exit
-  ParseSwitch
-  fi
+        noexit=0
+        Q=--exit
+        ParseSwitch
+    fi
 else
 # We GOT one!
-  if [ -z "$WRITEABLE" -a -z "$NOMAKELOCALDIR" ]; then
+    if [ -z "$WRITEABLE" -a -z "$NOMAKELOCALDIR" ]; then
 # Offer to create a dir so they can download their own
 # This shouldn't be done until after we've tested all options for writability
 # --defaultno doesn't work under FreeBSD's braindead dialog-0.4
-$MyDialog --title "$ME-$Minor.$Revision: query" --yesno "\
+        $MyDialog --title "$ME-$Minor.$Revision: query" --yesno "\
 I've found Request For Comment (RFC) docs in\n\
   $PLACE, \n\
 but you can't write stuff to that directory.\n\
 Do you want me to create the directory\n
   $HOME/rfc\n\
 so you can download documents locally (Y/n)" 14 50
-    if [ "$?" = 0 ]; then
-        mkdir $HOME/rfc
-        WRITEABLE=$HOME/rfc
+        if [ "$?" = 0 ]; then
+            mkdir $HOME/rfc
+            WRITEABLE=$HOME/rfc
+        fi
     fi
-  fi
 # Now we test if we're on a Debian system with RFC packages installed 
 # - most likely if $PLACE="/usr/share/doc/RFC/links"
-  if [ "$PLACE" = "/usr/share/doc/RFC/links" -a -z "$WRITEABLE" ]; then
+    if [ "$PLACE" = "/usr/share/doc/RFC/links" -a -z "$WRITEABLE" ]; then
 # Their rfc-index.txt resides in the parent dir.
-    INDEX="$PLACE/.."
-  elif [ "$WRITEABLE" ]; then
+        INDEX="$PLACE/.."
+    elif [ "$WRITEABLE" ]; then
 # ... we use our writeable one, though we still have to check back at $PLACE if this one doesn't exist
-    INDEX="$WRITEABLE"
-  else
+        INDEX="$WRITEABLE"
+    else
 # We don't have Debian's RFC packages installed (or it's not Debian)
-    INDEX="$PLACE"
-  fi
+        INDEX="$PLACE"
+    fi
 
 # Start off in a well known dir
 # This bugs when my /home/user/rfc dir has no files, and
 # the global dir is writable by the user
-  cd $PLACE
+    cd $PLACE
 fi
 
 declare -a D[]
 declare -a C[]
 if [ "$1" = "-notx" ]; then
-        RFCRun=less
-        shift
+    RFCRun=less
+    shift
 else
 #  if [ $DISPLAY ]; then
 #    RFCRun=gless
@@ -1760,67 +1863,67 @@ fi
 MAXVAL=$(ls  rfc[[:digit:]]*.txt* 2>/dev/null | cut -c4-| sort -n | tail -n 1 | cut -f1 -d. )
 # Now, we check out the writeable dir's value
 if [ "$WRITEABLE" ]; then
-  OLDPLACE=$PLACE
-  if [ "$PLACE" != "$WRITEABLE" ]; then
+    OLDPLACE=$PLACE
+    if [ "$PLACE" != "$WRITEABLE" ]; then
 # Only change dir if we have to, and change back afterwards
-    cd $WRITEABLE
-    MAXWVAL=$(ls  rfc[[:digit:]]*.txt* 2>/dev/null | cut -c4-| sort -n | tail -n 1 | cut -f1 -d. )
-    cd $OLDPLACE
-  else
-    MAXWVAL=$MAXVAL # might as well make it the same - but watch for bugs
-  fi
-# This test FAILS if either of MAXVAL or MAXWVAL are not defined. We have to wrap it.
-  if [ ! -z "$MAXVAL" -o ! -z "$MAXWVAL" ]; then 
-    if [ "$MAXWVAL" -gt "$MAXVAL" ]; then
-# switch values
-      MAXTVAL=$MAXVAL
-      MAXVAL=$MAXWVAL
-      MAXWVAL=$MAXTVAL
+        cd $WRITEABLE
+        MAXWVAL=$(ls  rfc[[:digit:]]*.txt* 2>/dev/null | cut -c4-| sort -n | tail -n 1 | cut -f1 -d. )
+        cd $OLDPLACE
+    else
+        MAXWVAL=$MAXVAL # might as well make it the same - but watch for bugs
     fi
-  fi # This wraps the MAXVAL|MAXWVAL test
+# This test FAILS if either of MAXVAL or MAXWVAL are not defined. We have to wrap it.
+    if [ ! -z "$MAXVAL" -o ! -z "$MAXWVAL" ]; then 
+        if [ "$MAXWVAL" -gt "$MAXVAL" ]; then
+# switch values
+            MAXTVAL=$MAXVAL
+            MAXVAL=$MAXWVAL
+            MAXWVAL=$MAXTVAL
+        fi
+    fi # This wraps the MAXVAL|MAXWVAL test
 fi
 
 # Now we make sure it's not empty
 # ZD: Meaningful variable names?
 if [ "$MAXVAL" != "" ]; then
-  if [ $MAXVAL -lt "1000" ]; then 
-      MAXK=0
-      if [ $MAXVAL -lt "100" ]; then 
-        MAXH=0
-        if [ $MAXVAL -lt "10" ]; then 
-          MAXT=0
+    if [ $MAXVAL -lt "1000" ]; then 
+        MAXK=0
+        if [ $MAXVAL -lt "100" ]; then 
+            MAXH=0
+            if [ $MAXVAL -lt "10" ]; then 
+                MAXT=0
+            else
+                MAXT=$(echo $MAXVAL| cut -c1)
+            fi
         else
-          MAXT=$(echo $MAXVAL| cut -c1)
+            MAXH=$(echo $MAXVAL| cut -c1)
+            MAXT=$(echo $MAXVAL| cut -c2)
         fi
-      else
-        MAXH=$(echo $MAXVAL| cut -c1)
-        MAXT=$(echo $MAXVAL| cut -c2)
-      fi
-  else
-      MAXK=$(echo $MAXVAL| cut -c1)
+    else
+        MAXK=$(echo $MAXVAL| cut -c1)
         MAXH=$(echo $MAXVAL| cut -c2)
         MAXT=$(echo $MAXVAL| cut -c3)
-  fi
+    fi
 # Hrm. None in global dir. Let's try localdir
 elif [ "$MAXWVAL" != "" ]; then
-  if [ $MAXWVAL -lt "1000" ]; then 
-      MAXK=0
-      if [ $MAXWVAL -lt "100" ]; then 
-        MAXH=0
-        if [ $MAXWVAL -lt "10" ]; then 
-          MAXT=0
+    if [ $MAXWVAL -lt "1000" ]; then 
+        MAXK=0
+        if [ $MAXWVAL -lt "100" ]; then 
+            MAXH=0
+            if [ $MAXWVAL -lt "10" ]; then 
+                MAXT=0
+            else
+                MAXT=$(echo $MAXWVAL| cut -c1)
+            fi
         else
-          MAXT=$(echo $MAXWVAL| cut -c1)
+            MAXH=$(echo $MAXWVAL| cut -c1)
+            MAXT=$(echo $MAXWVAL| cut -c2)
         fi
-      else
-        MAXH=$(echo $MAXWVAL| cut -c1)
-        MAXT=$(echo $MAXWVAL| cut -c2)
-      fi
-  else
-      MAXK=$(echo $MAXWVAL| cut -c1)
+    else
+        MAXK=$(echo $MAXWVAL| cut -c1)
         MAXH=$(echo $MAXWVAL| cut -c2)
         MAXT=$(echo $MAXWVAL| cut -c3)
-  fi
+    fi
 
 else # uh oh, we have no rfcnnnn files here whatsoever, in either dir
 ###### bug #######
@@ -1829,93 +1932,93 @@ else # uh oh, we have no rfcnnnn files here whatsoever, in either dir
 # and doesn't read the global - i.e. if we created a /home/user/rfc, then
 # it tries to use that dir, even if the global is writable
 ###### bug #######
-        REMOTEFILE=rfc1.txt
-        Val=-get
+    REMOTEFILE=rfc1.txt
+    Val=-get
 # We'd better think about changing to $WRITEABLE first, else we'll get 
 # the "I can't write to ..." message, which will only confuse people
-        $MyDialog --title "$ME-$Minor.$Revision: query" --yesno "You haven't got any rfc files here. Shall I fetch some?" 7 40
-  if [ "$?" = 0 ]; then
-    cd $WRITEABLE # we have to assume this exists, before changing to it.
+    $MyDialog --title "$ME-$Minor.$Revision: query" --yesno "You haven't got any rfc files here. Shall I fetch some?" 7 40
+    if [ "$?" = 0 ]; then
+        cd $WRITEABLE # we have to assume this exists, before changing to it.
     # REMOTEFILE=rfc1.txt, remember? LOL...
-    FetchSingle
+        FetchSingle
 # We probably need to get some common files too...
-    REMOTEFILE=rfc-index.txt
-    FetchSingle
-    REMOTEFILE=rfc-ref.txt
-    FetchSingle
-    REMOTEFILE=rfcxx00.txt
-    FetchSingle
-    $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "Now you have rfc1, you can now get further documents\n\
+        REMOTEFILE=rfc-index.txt
+        FetchSingle
+        REMOTEFILE=rfc-ref.txt
+        FetchSingle
+        REMOTEFILE=rfcxx00.txt
+        FetchSingle
+        $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "Now you have rfc1, you can now get further documents\n\
 from $REMOTEPLACE \n\
 from the program menu - see Help for more details." 12 60
-  else
-    exit 0  
-  fi
+    else
+        exit 0  
+    fi
 fi
 if [ "$1" = "" ]; then
         # Maybe we should pass through into a global menu?
-        while [ "$noexit" = 1 ]; do
+    while [ "$noexit" = 1 ]; do
         # This sets $menulevel on entry
-          TaskSelect
-        done
+        TaskSelect
+    done
 else
-  while [ "$1" ]; do
+    while [ "$1" ]; do
 # I eventually plan to change this so that it asks for RFC, STD, FYI or BCP.
 # It's my code. I'll write what I want... >(8-)
-    menulevel=1 # there - that sets that.
-    FeedQREST $@
+        menulevel=1 # there - that sets that.
+        FeedQREST $@
 #    echo "Q=$Q, REST=$REST, DEFEXT=$DEFEXT"
-    ParseSwitch $Q $REST
-    if [ $menulevel -gt 0 ]; then
-      MenuSwitch=$1
+        ParseSwitch $Q $REST
+        if [ $menulevel -gt 0 ]; then
+            MenuSwitch=$1
 #    if [ "$1" != "-menu" -a "$1" != "-prompt" ]; then
 #      shift
 #    fi
-      case $MenuSwitch in
+            case $MenuSwitch in
         # This won't handle multiple entries, i.e. -get 2345 2346 2348 2350
-        -get|--get)
+                -get|--get)
         # pop off two, but see comment above
 	# ZD: shift 2 will do.
-          shift
-          shift ;;
-        -getrange|--getrange|-range|--range)
+                    shift
+                    shift ;;
+                -getrange|--getrange|-range|--range)
         # pop off three (-getrange from to), but see comment above
 	# ZD: again, shift 3 will do, I'll stop saying this now
-          shift
-          shift
-          shift ;;
-        -menu|--menu|-prompt|--prompt)
+                    shift
+                    shift
+                    shift ;;
+                -menu|--menu|-prompt|--prompt)
         # If we have -menu, keep cycling until we select <Cancel>
-          ;;
+                    ;;
         # TODO: We have to change this, as it won't work for search terms that 
         # are more than one word.
-        -search|--search)
-          if [ "$2" ]; then
-            shift
-            shift
-          fi
-          ;;
-        -title|--title)
-          if [ "$2" ]; then
-            shift
-            shift
-          fi
-          ;;
-        -no) 
-          shift
-          ;;
+                -search|--search)
+                    if [ "$2" ]; then
+                        shift
+                        shift
+                    fi
+                    ;;
+                -title|--title)
+                    if [ "$2" ]; then
+                        shift
+                        shift
+                    fi
+                    ;;
+                -no) 
+                    shift
+                    ;;
         # Theoretically, we exit on a version
-        -version|-v|--version)
-          exit
-          ;;
-        *) # Anything else, we pop off the var, leaving the rest on the stack
-        shift ;;
-      esac
-    else
+                -version|-v|--version)
+                    exit
+                    ;;
+                *) # Anything else, we pop off the var, leaving the rest on the stack
+                    shift ;;
+            esac
+        else
     # Okay, we've finished inside the menu, time to leave.
-      exit
-    fi
-  done
+            exit
+        fi
+    done
 fi
 
 # ZD: Bye bye

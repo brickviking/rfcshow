@@ -1,9 +1,11 @@
 #!/bin/bash
-# vim:ts=2:ww=0:tw=0:
 # Copyright (C) 2005 Eric Gillespie
 # Copyright under the GNU Public License Version 2
-Revision=16
+Revision=20
 Minor=0.9
+
+# ZD: -- for long, - for short, the other way around is annoying
+# ZD: The indenting is making the code hard to read
 
 ######################### Requirements #############################
 # ncftp, bash, expect (not mandatory, but it needs tcl installed), 
@@ -47,10 +49,15 @@ TITLES=-ref
 # This place, for my system.
 #PLACE=/usr/share/doc/rfc
 # We'll check Debian first, followed by my standard places
+# Only time this doesn't work is if you have a $HOME/rfc that's a file, 
+# and not a dir. Then, if none of the others exist, we're in trouble
 PLACES="/usr/share/doc/RFC/links /usr/share/doc/rfc $HOME/rfc"
-# This MUST be a place you have write access to, with enough room for say, 1Mb
-MYFILE=/tmp/rfctemprfc 
-MYFILE2=/tmp/rfctempoutput
+# This MUST be a directory you have write access to, with enough room for say, 1Mb
+MYDIR=/tmp
+# You COULD put it into your own dir, but then we'd have to create it if it didn't
+# already exist.
+MYFILE=$MYDIR/rfctemprfc 
+MYFILE2=$MYDIR/rfctempoutput
 # Do we want the web site, or the ftp site? http would have to mean using wget/curl/lynx
 # with all the complications that would provide
 REMOTEPLACE="ftp://ftp.rfc-editor.org/in-notes/"
@@ -84,7 +91,7 @@ MYGREP=$(which grep 2>/dev/null)
 if [ -z "$MYBZGREP" ]; then
 # Had to hack one in, as one wasn't found on the machine.
 # This is a VERY simple version, and as such, has some limitations
-# that I haven't come across yet.
+# like: only one search term, without spaces
   bzgrep() {
     this=$1
     that=$2
@@ -232,7 +239,7 @@ RfcEngine() {
   fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
-#      rm -rf $MYFILE
+      rm -rf $MYFILE
 }
 
 PdfEngine() {
@@ -243,6 +250,7 @@ MyGv=$( which gv 2>/dev/null  )
 First=${MyAcro:-$MyXpdf}
 MyPDFViewer=${First:-$MyGv}
 unset First
+# ZD: Needs to be commented, or at least needs a header introducing it ;)
   if [ "$MyPDFViewer" ]; then
     if [ $DISPLAY ]; then
       $MyDialog --title "Supplied RFCs" --msgbox "$ME-$Minor.$Revision: running external viewer $MyPDFViewer" 8 "$MYLISTX"
@@ -255,9 +263,14 @@ unset First
   fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
+
+# ZD: NEVER EVER(!!!) rm -rf a file, always rm -f, if 
+# ZD: the file turns out to be something else, things can get messy
       rm -rf $MYFILE.pdf
 }
 
+# ZD: I like your wrappers, but perhaps they should all be at one place so
+# ZD: they are easier to find?
 PsEngine() {
 # Surely there MUST be more than one PS viewer - and we don't 
 # need X either, but I don't account for SVGA/fb here.
@@ -275,6 +288,7 @@ MyPsViewer=$(which gv 2>/dev/null)
     fi
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
+# ZD: rm -rf again
   rm -rf $MYFILE.ps
 }
 
@@ -291,6 +305,7 @@ MyPsViewer=$(which gv 2>/dev/null)
 # which means some inefficiency.
 RenderCore() {
 RFCFile=$Val
+# ZD: This can all probably be done in alot less code by using a loop
 if [ "`ls | grep -e rfc$Val.$DEFEXT`" ]; then
   #  file-type detection and decompression as per type
   if [ -f rfc$Val.$DEFEXT ]; then
@@ -359,6 +374,9 @@ else
   else
 # This is where we offer to fetch the missing rfc - there's been an inconsistency listed
 # here that 0 shows up, but can't (obviously) be downloaded. Hence the addition of the previous code
+
+# ZD: Perhaps you should write a wrapper for your dialogs so that you can easily
+# ZD: add other interfaces (ask me about xmsg)
   $MyDialog --title "$ME-$Minor.$Revision: error!" --yesno "Sorry, rfc$Val.$DEFEXT is not in this database.\n\
 $ME -index will give you the current documents here.\n\
 Shall I try to fetch rfc$Val.txt from\n\
@@ -421,7 +439,7 @@ you should only choose one of the set. mmmm and nnn and ppp
 stand for some number you're supposed to put in.
   $ME [{-txt | -pdf | -ps } [ -stdout ] nnnn ]
       [ -no ] (should precede ALL other switches)
-			{-menu | -index | -list | -prompt }
+      {-menu | -index | -list | -prompt }
       [ -keyword blah ] [ -title nnnn ]
       [-range nnnn pppp]
       - where nnnn/pppp is currently between 0 and $MAXVAL.
@@ -458,6 +476,8 @@ stand for some number you're supposed to put in.
 }
 
 
+# ZD: The same length of the ############# lines everywhere would make it looks better
+
 ########################################################
 #
 # Menu group code - cutesy dialog menus that call the 
@@ -478,14 +498,14 @@ MenuCore() {
         K=0
       else
         KMenuGroup
-				DeadYet
+        DeadYet
       fi
       if [ "$menulevel" -gt 0 ]; then
         if [ "$MAXK" -eq "0" -a "$MAXH" -eq "0" ]; then
           H=0
         else
           HMenuGroup
-				  DeadYet
+          DeadYet
         fi
       fi
       if [ "$menulevel" -gt 0 ]; then
@@ -493,12 +513,12 @@ MenuCore() {
           T=0
         else
           TMenuGroup
-				  DeadYet
+          DeadYet
         fi
       fi
       if [ "$menulevel" -gt 0 ]; then
         SubMenuGroup
-				DeadYet
+        DeadYet
       fi
     if [ "$K" -a "$H" -a "$T" -a "$U" ]; then
       Val=$(($K + $H + $T + $U))
@@ -529,11 +549,12 @@ TaskSelect() {
     Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task" 22 40 15 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick one from list" I "Index of all RFCs" D "List local RFCs" S "Search RFC Index" T "Show title of RFC" J "Get Latest RFCs" G "Get single RFC" R "Get RFC Range" H 'Help!' X Exit 2>&1 >$(tty))
   fi
   retval=$?
-	# DeadYet changes menulevel to 0
+  # DeadYet changes menulevel to 0
   DeadYet
   if [ "$menulevel" -lt 1 ]; then
     Out=X
   fi
+	# ZD: Again, waht this does is pretty unclear without comments
   case $Out in
           G) 
           # First one gives me $Val, pair this up with -get, guess what we have...
@@ -610,7 +631,7 @@ KMenuGroup () {
         0 rfc1-rfc999 \
       $(for ((i=1;i<=MAXK;i++)) ; do echo -n "${i}000 rfc${i}000-rfc${i}999 "; done) \
         2>&1 1>$(tty))
-				retval=$?
+        retval=$?
 }
 #        1000 rfc1000-rfc1999 \
 #        2000 rfc2000-rfc2999 \
@@ -633,7 +654,7 @@ HMenuGroup () {
         0 rfc"$M"000-rfc"$M"099 \
       $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}00 rfc$M${i}00-rfc$M${i}99 "; done) \
         2>&1 1>$(tty))
-				retval=$?
+        retval=$?
 }
 
 TMenuGroup () {
@@ -671,6 +692,8 @@ SubMenuGroup () {
 # be written over each time we either check out a RFC, or we create this list.
 # also, we have to allow for $TITLES from non-compressed format, or gzip
 # hmmm... could I replace these with GoCat?
+
+# ZD: Now this is pretty code :)
         if [ -f $PLACE/rfc$TITLES.txt.bz2 ]; then
           bzgrep "^RFC$Ma$Ca$Xa[0-9] " $PLACE/rfc$TITLES.txt.bz2 > $MYFILE
         elif [ -f $PLACE/rfc$TITLES.txt.gz ]; then
@@ -718,15 +741,17 @@ SubMenuGroup () {
 PromptForNumber() {
         Val=$( $MyDialog --title "$ME-$Minor.$Revision: $1" --inputbox "What Number? (0-$MAXVAL)" 8 45 \
         2>&1 1>$(tty))
-				retval=$?
+        retval=$?
 }
 
 # TODO: I'd LOVE to add the description as a menu entry.
 ChooseList() {
   MYVAL=${#VarArray[@]}
 # Here, we have to choose what RFCs I want to choose titles for.
+# Time for a for loop, though I'm commenting it right out of place until I have what I want.
       echo "" > $MYFILE # clear out the file
-# Time for a for loop
+#      echo "VarArray[@] is ${VarArray[@]}"
+#      read mumble
       for this in ${VarArray[@]}; do
         if [ -f $PLACE/rfc$TITLES.txt.bz2 ]; then
           bzgrep "^RFC$this " $PLACE/rfc$TITLES.txt.bz2 >> $MYFILE
@@ -736,21 +761,62 @@ ChooseList() {
           grep "^RFC$this " $PLACE/rfc$TITLES.txt >> $MYFILE
         fi
       done
-      echo "We have these descriptions:"
-      cat $MYFILE
-      read mumble
-  Res=$($MyDialog --title "Supplied RFCs" --checklist "Select for viewing" "$MYLINES" 40 $(( $MYLINES - 7 ))  \
-  $(for ((i=0;i<MYVAL;i++)) ; do MEVAL=${VarArray[$i]}; echo -n "${MEVAL} ${MEVAL} off "; done) \
-  2>&1 1>$(tty))
-#  $(for ((i=0;i<MYVAL;i++)) ; do MEVAL=${VarArray[$i]}; echo -n "${MEVAL} "; head -"$(( $i + 1 ))" $MYFILE | tr -d '\015'; echo " off "; done) \
+      # Now it's time we stripped prepended 0 off the RFC numbers
+      for ((i=0;i<${#VarArray[@]};i++)); do
+        VarArray[i]="$(echo ${VarArray[$i]} | sed 's/^0\+//')"
+      done
+#      read mumble
+#      echo "We have these descriptions:"
+#      cat $MYFILE
+      # Now I have to add these descriptions to another array.
+#      DescArray=( $(cat $MYFILE | awk -F\" '{ print $2 }') )
+      O=$IFS
+      IFS=$'\n'
+# ZD: All hail obscurity?
+# I asked for a sed line to give me lines from the first " on a line to the
+# last " on a line, without the ", but with embedded " turned into \"
+# Thanks, ThomasM
+      DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
+      IFS=$O
+#      MYVAL=$(( $MYVAL * 4 ))
+      that=0
+      # I have to do some counter magic in here to get the array members correct.
+      # Was supposed to be:
+#       for that=0; mumb[that++]="one"; mumb[that++]="two" .... done
+      # only, I can't get the counter right
+      for ((this=0;this<MYVAL;this++)) do
+        # This ought to be 3 for use without --item-help
+        that=$(( $this * 3 )); 
+#          munchstring[that++]="$this"
+          munchstring[that++]="${VarArray[$this]}"
+#          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\t"
+          munchstring[that++]="${DescArray[$this]}"
+#          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\t"
+          munchstring[that++]="off"
+#          echo -ne "$this: ${munchstring[$(( $that - 1 ))]}\n"
+     done
+#  echo -ne "Munchstring is: \n${munchstring[@]}"
+#  read mumble
+   declare -a Res
+  Res=($($MyDialog --title "Supplied RFCs" --checklist "Select for viewing" "$MYLINES" 80 $(( $MYLINES - 7 ))  \
+  "${munchstring[@]}"  2>&1 1>$(tty)))
+#  $( for ((i=0;i<MYVAL;i++)) ; do echo -n "${VarArray[$i]} ""'""${DescArray[$i]}""'"" off "  ; done ) \
+#  $(for ((i=0;i<MYVAL;i++)) ; do echo -n "${VarArray[$i]} ${DescArray[$i]} off "; done) \
   result=$?
+#  echo "${Res[@]}" > $MYFILE
   if [ $result = 0 ]; then
-    for this in ${Res[@]}; do
-      Q=$this
+    for ((this=0;this<${#Res[@]};this++)) do
+#      Q=${VarArray[$this]}
+      Q="${Res[$this]}"
+#      echo "Got $Q, and VarArray[$this] is ${VarArray[$this]}"
+#      echo "Got $Q for $this, Res#=${#Res[@]} and VarArray[$this] is ${VarArray[$this]}"
+#      read mumble
       ParseSwitch
     done
   fi
 }
+
+
 ############## End of menu code #########################
 
 #############################################################
@@ -769,8 +835,8 @@ if [ "$MYGET" ]; then
     case $MYGET in 
       $MYNCGET)
       $MYNCLS $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
-		*) $MYGET $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
-		esac
+    *) $MYGET $MYLSPARM $REMOTEPLACE > $DIRLIST ;;
+    esac
     Val=$?
     # This is where error returns would need tailoring. curl uses 19 for (file not there)
     case $Val in 
@@ -784,6 +850,8 @@ if [ "$MYGET" ]; then
   else
     # To make this work for ls -l, we'd have to pipe this through awk or cut, printing off the fourth field
     # Also, ls -l makes for WAY more data than just ls
+
+# ZD: cat on the same line as grep is a nono, grep blah file instead
     MAXREMOTEVAL=$(cat $DIRLIST | grep "rfc[[:digit:]]*.txt" 2>/dev/null | cut -c4- | sort -n | tail -n 1 | cut -d. -f1 )
   fi
   # then, grab the largest number from the latest available downloaded list
@@ -864,6 +932,9 @@ SizeRemoteLocal() {
   GoCat > $MYFILE
   LocalSize3=$(ls -l $MYFILE | cut -d' ' -f6)
 # now we clean up after ourselves
+
+# ZD: Now this shows how dangerous rm -rf can be, what if MYFILE for *SOME* reason is $HOME ?
+# ZD: then you're in trouble, or /? It'll start removing stuff carelessly
   rm -rf $MYFILE
   if [ "$LocalSize1" -ne "$RemoteSize1" ]; then
           build="-index "
@@ -919,7 +990,7 @@ FetchSingle() {
               -menu) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there" ;;
               -list) echo "$ME-$Minor.$Revision: Get REAL! That file doesn't exist up there!" ;;
         rfc-retrieval.txt|rfc-index.txt|rfc-ref.txt|rfcxx00.txt|rfc-index-latest.txt)
-				# Should we replace the copy in $PLACE, $INDEX, or $WRITEABLE?
+        # Should we replace the copy in $PLACE, $INDEX, or $WRITEABLE?
           ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
           RetVal=$?
           if [ $RetVal != "0" ]; then
@@ -991,7 +1062,7 @@ FetchSingle() {
           else # Okay, we don't have it - so go get it
             if [ "$MYGET" ]; then
               echo "Getting $REMOTEPLACE$REMOTEFILE - please wait"
-							# oooo - this has to be replaced with $MYGET
+              # oooo - this has to be replaced with $MYGET
               ncftpget -v "$REMOTEPLACE$REMOTEFILE" 
               RetVal=$?
 # 'Nother random thought - how about a TellGet() to tell us what happened (if anything)?
@@ -1024,6 +1095,7 @@ FetchRange() {
 # Realistically, I can probably call FetchSingle for each item in range
 # For THIS to work properly, $THAT absolutely MUST be valid on entry!
 Val=-get
+# ZD: Use meaningful variable names
 for ((this=$THIS;this<=$THAT;this++)); do
   REMOTEFILE=rfc"$this".$DEFEXT
   # We recurse... why not?
@@ -1102,7 +1174,12 @@ You don't have permission to write to the directory." 11 50
 You don't have permission to write to the directory." 11 50
     fi
           ;;
+    -version|--version|-v)
+      echo "I am $ME, revision $Minor.$Revision"
+      menulevel=0
+    ;;
     *) 
+    #ZD: could be more informative
           echo "Why am I here in FetchCore? Hit Enter to continue"
           read mumble
           ;;
@@ -1131,6 +1208,10 @@ case $Q in
   ;;
 -no|--no) # tells me you don't want to create a writeable dir to download to
   NOMAKELOCALDIR=1
+  ;;
+-version|-v|--version)
+  Val=$Q
+  FetchCore
   ;;
 # Prompt
 -menu|--menu)
@@ -1383,16 +1464,21 @@ perl -e '
     my ($lookingfor) = join " ", @ARGV;
 #    print "The Result:\n";
     open (RFCINDEX, $filename);
+    # How do we jump over the initial paragraphs? This just
+    # starts at the beginning.
     foreach $line (<RFCINDEX>) 
     {
+      next if $. < 66;
       if ($line !~ /^\s*$/){
         $thing .= $line; 
+        # This is too simplistic, for example a search for mail
+        # matches the prefacing paragraph before all the descs
         if ($line =~ /$lookingfor/i) {
           $found = 1;
           $rfccount++;
           # now, how do we recover first element of a line?
           $first_word = (split /\W+/, $line)[0];
-          $first_word =~ s/^0+//;
+#          $first_word =~ s/^0+//;
         }
       }
      else { 
@@ -1407,7 +1493,7 @@ perl -e '
 #    print "Found $rfccount results";
     close (RFCINDEX);
   }
-' $MYFILE $keyword > $MYFILE2
+' $MYFILE "$keyword" > $MYFILE2
 # No need for the index any more, might as well replace it with our target results
 mv -f $MYFILE2 $MYFILE
 # Here, we had better build VarArray for later ChooseList() function
@@ -1490,15 +1576,16 @@ noexit=1 # This is a noexit var - if it goes to 0, we leave. Simple, eh?
 MyWHIPTAIL=$(which whiptail 2>/dev/null)
 MyCDialog=$(which dialog 2>/dev/null)
 if [ $DISPLAY ]; then
+	#ZD: Use xmsg
 # To save time, I'll only look for a [x|g]dialog if we're on X
   MyGDialog=$(which gdialog 2>/dev/null)
   MyXDialog=$(which Xdialog 2>/dev/null)
   MyKDialog=$(which kdialog 2>/dev/null)
-	# We can't give even preference, we have to choose one or the other
-	MyWMDialog=${MyGDialog:-$MyKDialog}
-	# Use Xdialog if we have neither Gdialog nor kdialog
+  # We can't give even preference, we have to choose one or the other
+  MyWMDialog=${MyGDialog:-$MyKDialog}
+  # Use Xdialog if we have neither Gdialog nor kdialog
   MyTestXDialog=${MyWMDialog:-$MyXDialog}
-	# Use cdialog or whiptail if we have no X dialog
+  # Use cdialog or whiptail if we have no X dialog
   MyTestCDialog=${MyCDialog:-$MyWHIPTAIL}
   MyDialog=${MyTestXDialog:-$MyTestCDialog}
 else
@@ -1520,14 +1607,14 @@ fi
 # echo "Starting setup - hit Enter to continue"; read shyte
 if [ "$STDOUT" ]; then
   echo "Please wait while I set up."
-else
-  if [ "$MyDialog" = "$MyKDialog" ]; then 
-    $MyDialog --title "$ME-$Minor.$Revision: Info" --msgbox "Hit Enter (or click OK) and wait while I set up" 7 30
-  else
-    $MyDialog --title "$ME-$Minor.$Revision: Info" --infobox "Please wait while I set up" 7 30
-  fi
+#else
+#  if [ "$MyDialog" = "$MyKDialog" ]; then 
+#    $MyDialog --title "$ME-$Minor.$Revision: Info" --msgbox "Hit Enter (or click OK) and wait while I set up" 7 30
+#  else
+#    $MyDialog --title "$ME-$Minor.$Revision: Info" --infobox "Please wait while I set up" 7 30
+#  fi
 fi
-sleep 2
+sleep 1
 if [ -z "$MYGET" ]; then
         $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "Whoops - you don't have any program I can use\n\
 to fetch files with! Go grab a copy of one of\n\
@@ -1602,6 +1689,12 @@ Do you want to create the directory\n\
 so you can download documents locally (y/N)" 13 50
   if [ "$?" = 0 ]; then
     mkdir $HOME/rfc
+    # ZD: did it fail?
+    ret=$?
+    if [ "$ret" != "0" ]; then
+	    echo "ERROR: mkdir $HOME/rfc failed with return value: $ret"
+    fi
+    # ZD: --end addition--
     PLACE=$HOME/rfc
     INDEX=$HOME/rfc
     WRITEABLE=$HOME/rfc
@@ -1688,6 +1781,7 @@ if [ "$WRITEABLE" ]; then
 fi
 
 # Now we make sure it's not empty
+# ZD: Meaningful variable names?
 if [ "$MAXVAL" != "" ]; then
   if [ $MAXVAL -lt "1000" ]; then 
       MAXK=0
@@ -1761,7 +1855,7 @@ fi
 if [ "$1" = "" ]; then
         # Maybe we should pass through into a global menu?
         while [ "$noexit" = 1 ]; do
-				# This sets $menulevel on entry
+        # This sets $menulevel on entry
           TaskSelect
         done
 else
@@ -1772,40 +1866,56 @@ else
     FeedQREST $@
 #    echo "Q=$Q, REST=$REST, DEFEXT=$DEFEXT"
     ParseSwitch $Q $REST
-		if [ $menulevel -gt 0 ]; then
-    MenuSwitch=$1
+    if [ $menulevel -gt 0 ]; then
+      MenuSwitch=$1
 #    if [ "$1" != "-menu" -a "$1" != "-prompt" ]; then
 #      shift
 #    fi
-    case $MenuSwitch in
-            # This won't handle multiple entries, i.e. -get 2345 2346 2348 2350
-            -get|--get)
-            # pop off two, but see comment above
+      case $MenuSwitch in
+        # This won't handle multiple entries, i.e. -get 2345 2346 2348 2350
+        -get|--get)
+        # pop off two, but see comment above
+	# ZD: shift 2 will do.
+          shift
+          shift ;;
+        -getrange|--getrange|-range|--range)
+        # pop off three (-getrange from to), but see comment above
+	# ZD: again, shift 3 will do, I'll stop saying this now
+          shift
+          shift
+          shift ;;
+        -menu|--menu|-prompt|--prompt)
+        # If we have -menu, keep cycling until we select <Cancel>
+          ;;
+        # TODO: We have to change this, as it won't work for search terms that 
+        # are more than one word.
+        -search|--search)
+          if [ "$2" ]; then
             shift
-            shift ;;
-            -getrange|--getrange|-range|--range)
-            # pop off three (-getrange from to), but see comment above
+            shift
+          fi
+          ;;
+        -title|--title)
+          if [ "$2" ]; then
             shift
             shift
-            shift ;;
-            -menu|--menu|-prompt|--prompt)
-    # If we have -menu, keep cycling until we select <Cancel>
-            ;;
-            -search|--search|-title|--title)
-            if [ "$2" ]; then
-                    shift
-                    shift
-            fi
-                    ;;
-            -no) shift
-						;;
-            *) # Anything else, we pop off the var, leaving the rest on the stack
-            shift ;;
-    esac
-		else
-						exit
-		fi
+          fi
+          ;;
+        -no) 
+          shift
+          ;;
+        # Theoretically, we exit on a version
+        -version|-v|--version)
+          exit
+          ;;
+        *) # Anything else, we pop off the var, leaving the rest on the stack
+        shift ;;
+      esac
+    else
+    # Okay, we've finished inside the menu, time to leave.
+      exit
+    fi
   done
 fi
 
-
+# ZD: Bye bye

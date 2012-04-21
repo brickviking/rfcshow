@@ -1068,270 +1068,6 @@ to return to this help menu, simply choose 'Help! Help!' from the\n\
 front menu again." > $MYFILE
 }
 
-#################################################################
-# This code acts as a front end, to select tasks
-#################################################################
-
-TaskSelect() {
-# Don't forget to take the vagaries of whiptail or old dialog into account
-# I'm still working out how to integrate BCP/FYI/STDs to this listing 
-    menulevel=1
-#    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick RFC by number from list" K "Text RFCs without number" D "Directory of local RFCs" I "RFC Index (total)" C "Check titles" S "Search RFC Index" T "Show title of RFC" G "Get single RFC" R "Get RFC Range" L "Get Latest available RFCs" X Exit )
-    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 0 "Pick RFC by number from list" N "Text RFCs without number" 9 "Directory of local RFCs" C "Check titles from index" / "Search RFC Index" T "Show title of RFC from index" G "Get single RFC" R "Get RFC Range" L "Get all Latest available RFCs" I "RFC Index" F "FYI index" S "STD index" B "BCP Index" X Exit )
-    if [ "$MyDialog" = "$MyKDialog" ]; then
-      Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task: latest local RFC $MAXVAL" "${MyString[@]}" 2>&1 )
-      retval=$?
-      $MyDialog --title "$ME-$Minor.$Revision: Info" --msgbox "Thank you. Hit Enter (or click OK) and wait while I set up" 7 30
-#      BugAuthor
-    else
-      Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task: latest local RFC $MAXVAL" 24 40 17 "${MyString[@]}" 2>&1 >$(tty))
-      retval=$?
-    fi
-  # DeadYet changes menulevel to 0
-    DeadYet
-    if [ "$menulevel" -lt 1 ]; then
-        Out=X
-    fi
-	# ZD: Again, waht this does is pretty unclear without comments
-    case $Out in
-        1) Q=--prompt ;;
-        2) Format
-            SetFormatDone=1
-            PromptForNumber "Bottom of range"
-            DeadYet
-            if [ "$menulevel" -gt 0 ]; then
-                Val1=$Val
-                PromptForNumber "Top of range"
-                DeadYet
-                if [ "$menulevel" -gt 0 ]; then
-                    Val2=$Val
-                    REST="$Val1 $Val2 $REST"
-                    Q=--range
-                fi
-            fi
-            ;;
-        9) Q=--list ;;
-        0) Q=--menu ;;
-        B) Q=bcp-index ;;
-        C) Q=--searchtitles ;;
-        F) Q=fyi-index ;;
-        G) 
-          # First one gives me $Val, pair this up with -get, guess what we have...
-            Format # yes, we have to stick it in here to get the right value.
-            PromptForNumber
-            DeadYet
-            if [ "$menulevel" -gt 0 ]; then
-                REST="$Val $REST"
-                Q=--get 
-            fi
-            ;;
-        H) Q=--help ;;
-        I) Q=rfc-index ;;
-        L) Format
-        Q=--getlatest 
-        ;;
-        N) Q=--itemlist ;;
-        R) Format
-        PromptForNumber "Bottom of range"
-            DeadYet
-            if [ "$menulevel" -gt 0 ]; then
-                Val1=$Val
-                PromptForNumber "Top of range"
-                DeadYet
-                if [ "$menulevel" -gt 0 ]; then
-                    Val2=$Val
-                    REST="$Val1 $Val2 $REST"
-                    Q=--getrange
-                fi
-            fi
-            ;;
-        S) Q=std-index ;;
-        T) Q=--title ;;
-        X) Q=--exit
-            noexit=0 ;;
-        '/') Q=--search ;;
-    esac
-    case $Q in 
-        --prompt|--menu) DEFEXT=$($MyDialog --title "$ME-$Minor.$Revision: output format" --menu "Select output format" 12 40 5 txt Text pdf PDF ps PS stdout Stdout 2>&1 >$(tty))
-            DeadYet
-    # Need to do a condition test for menulevel=0
-            ;;
-    esac
-    if [ "$DEFEXT" = "stdout" ]; then
-        DEFEXT=txt
-           # Add stdout flag
-        STDOUT=1
-    fi
-    if [ "$menulevel" -gt 0 ]; then
-        ParseSwitch
-    fi
-}
-
-KMenuGroup() { # Kilo (thousand)
-# Original comments:
-# This list will need to be expanded when the RFCs get beyond 4999
-# ... otherwise I'll make it a brighter program that works out what the maximum
-# values are from MAXVAL - we do have a MAXK value I ought to learn to leverage.
-# New comments:
-# Contributed bit of code to leverage MAXK for menus. 
-# Only hassle is, it doesn't show for files: [MAXVAL..MAXREMOTEVAL]
-    K=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
-        0 rfc1-rfc999 \
-        $(for ((i=1;i<=MAXK;i++)) ; do echo -n "${i}000 rfc${i}000-rfc${i}999 "; done) \
-        2>&1 1>$(tty))
-    retval=$?
-    # Reason for this is because rfc filenames are not zero-padded,
-    # even though their entries in rfc-ref are zero-padded, so we have to provide
-    # a variable either way.
-    M=$(($K/1000))
-    Ma=$(($K/1000))
-    if [ $M -eq 0 ]; then
-        M=""
-    fi
-}
-
-#        1000 rfc1000-rfc1999 \
-#        2000 rfc2000-rfc2999 \
-#        3000 rfc3000-rfc3999 \
-#        4000 rfc4000-rfc4999 \
-
-HMenuGroup() { # Hecto (hundred)
-    local MYVAL
-#        if [ $Ma -le $MAXK ]; then
-    MYVAL=9
-#        else
-#          MYVAL=$MAXH
-#        fi
-    H=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
-        0 rfc"$M"000-rfc"$M"099 \
-        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}00 rfc$M${i}00-rfc$M${i}99 "; done) \
-        2>&1 1>$(tty))
-    retval=$?
-    C=$(($H/100))
-    Ca=$(($H/100))
-    if [ "$M" = "" ]; then
-        if [ $C -eq 0 ]; then
-            C=""
-        fi
-    fi
-}
-
-TMenuGroup() { # Tens
-    local MYVAL
-    MYVAL=9
-    T=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 ))  \
-        0 rfc"$M$C"00-rfc"$M$C"09 \
-        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}0 rfc$M$C${i}0-rfc$M$C${i}9 "; done) \
-        2>&1 1>$(tty))
-    retval=$?
-    X=$(($T/10))
-    Xa=$(($T/10))
-    if [ "$M" = "" ]; then
-        if [ "$C" = "" ]; then
-            if [ $X -eq 0 ]; then
-                X=""
-            fi
-        fi
-    fi
-}
-
-
-# ... and finally, the last menu. This is the one that shows available titles.
-
-SubMenuGroup() { # Units
-# We might as well just do the [b[z]]grep once, instead of up to ten times.
-# we can do a normal grep once we have the file in text form.
-# not only that, but we might as well use our MYFILE for the tempfile - it will
-# be written over each time we either check out a RFC, or we create this list.
-# also, we have to allow for $TITLES from non-compressed format, or gzip
-# hmmm... could I replace these with GoCat?
-# ZD: Now this is pretty code :)
-    if [ -f "${PLACE}rfc$TITLES.txt.bz2" ]; then
-        bzgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.bz2 > $MYFILE
-    elif [ -f "${PLACE}rfc$TITLES.txt.gz" ]; then
-        zgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.gz > $MYFILE
-    elif [ -f "${PLACE}rfc$TITLES.txt" ]; then
-        grep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt > $MYFILE
-    fi
-
-#    DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
-# Theoretically, this could have used one test, and just listed the titles
-# regardless of whether we HAD them or not, but I wanted an indication of
-# the files if they were missing in local store
-#    for I in 0 1 2 3 4 5 6 7 8 9; do
-      # I'm sure this ought to be simpler; one test, instead of 8
-#        if [ -f rfc"$M$C$X$I"."${DEFEXT}".bz2 ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".txt ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".txt.pdf ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".pdf ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".ps ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-#        else
-#            D[$I]="N"; B[$I]="$I missing"
-#        fi
-#    done
-    ############## New Code #################
-    # New code to replace the for loop above, don't put it into action until we're sure
-    # that we have it all correct. This has the advantage of ONLY checking *.$DEFEXT.*
-    for I in 0 1 2 3 4 5 6 7 8 9; do
-      case $DEFEXT in
-        txt)
-          if [ -f rfc"$M$C$X$I".txt.bz2 ]; then
-#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          elif  [ -f rfc"$M$C$X$I".txt ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          else
-            D[$I]="N"; B[$I]="$I missing"
-          fi
-        ;;
-        pdf) 
-          if  [ -f rfc"$M$C$X$I".txt.pdf ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          elif  [ -f rfc"$M$C$X$I".pdf ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          else
-            D[$I]="N"; B[$I]="$I missing"
-          fi
-        ;;
-        ps)
-          if  [ -f rfc"$M$C$X$I".ps ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
-            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
-          else
-            D[$I]="N"; B[$I]="$I missing"
-          fi
-        ;;
-      esac
-    done
-    ############## End of new code ######################
-  # Another string builder created from the previous for loop
-    for ((this=0;this<10;this++)) do
-      that=$(( $this * 2 )); 
-      munchstring[that++]="$this"
-      munchstring[that++]="rfc$M$C$X${B[$this]}"
-    done
-    # ... and the resulting menu
-    U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) "${munchstring[@]}" \
-        2>&1 1>$(tty))
-    retval=$?
-}
-
 # This queries the user for a number, feeding it back into $Val for RenderCore
 
 PromptForNumber() {
@@ -2723,6 +2459,270 @@ FeedQREST () {
     shift
     REST=$@
 }
+#################################################################
+# This code acts as a front end, to select tasks
+#################################################################
+
+TaskSelect() {
+# Don't forget to take the vagaries of whiptail or old dialog into account
+# I'm still working out how to integrate BCP/FYI/STDs to this listing 
+    menulevel=1
+#    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick RFC by number from list" K "Text RFCs without number" D "Directory of local RFCs" I "RFC Index (total)" C "Check titles" S "Search RFC Index" T "Show title of RFC" G "Get single RFC" R "Get RFC Range" L "Get Latest available RFCs" X Exit )
+    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 0 "Pick RFC by number from list" N "Text RFCs without number" 9 "Directory of local RFCs" C "Check titles from index" / "Search RFC Index" T "Show title of RFC from index" G "Get single RFC" R "Get RFC Range" L "Get all Latest available RFCs" I "RFC Index" F "FYI index" S "STD index" B "BCP Index" X Exit )
+    if [ "$MyDialog" = "$MyKDialog" ]; then
+      Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task: latest local RFC $MAXVAL" "${MyString[@]}" 2>&1 )
+      retval=$?
+      $MyDialog --title "$ME-$Minor.$Revision: Info" --msgbox "Thank you. Hit Enter (or click OK) and wait while I set up" 7 30
+#      BugAuthor
+    else
+      Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task: latest local RFC $MAXVAL" 24 40 17 "${MyString[@]}" 2>&1 >$(tty))
+      retval=$?
+    fi
+  # DeadYet changes menulevel to 0
+    DeadYet
+    if [ "$menulevel" -lt 1 ]; then
+        Out=X
+    fi
+	# ZD: Again, waht this does is pretty unclear without comments
+    case $Out in
+        1) Q=--prompt ;;
+        2) Format
+            SetFormatDone=1
+            PromptForNumber "Bottom of range"
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                Val1=$Val
+                PromptForNumber "Top of range"
+                DeadYet
+                if [ "$menulevel" -gt 0 ]; then
+                    Val2=$Val
+                    REST="$Val1 $Val2 $REST"
+                    Q=--range
+                fi
+            fi
+            ;;
+        9) Q=--list ;;
+        0) Q=--menu ;;
+        B) Q=bcp-index ;;
+        C) Q=--searchtitles ;;
+        F) Q=fyi-index ;;
+        G) 
+          # First one gives me $Val, pair this up with -get, guess what we have...
+            Format # yes, we have to stick it in here to get the right value.
+            PromptForNumber
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                REST="$Val $REST"
+                Q=--get 
+            fi
+            ;;
+        H) Q=--help ;;
+        I) Q=rfc-index ;;
+        L) Format
+        Q=--getlatest 
+        ;;
+        N) Q=--itemlist ;;
+        R) Format
+        PromptForNumber "Bottom of range"
+            DeadYet
+            if [ "$menulevel" -gt 0 ]; then
+                Val1=$Val
+                PromptForNumber "Top of range"
+                DeadYet
+                if [ "$menulevel" -gt 0 ]; then
+                    Val2=$Val
+                    REST="$Val1 $Val2 $REST"
+                    Q=--getrange
+                fi
+            fi
+            ;;
+        S) Q=std-index ;;
+        T) Q=--title ;;
+        X) Q=--exit
+            noexit=0 ;;
+        '/') Q=--search ;;
+    esac
+    case $Q in 
+        --prompt|--menu) DEFEXT=$($MyDialog --title "$ME-$Minor.$Revision: output format" --menu "Select output format" 12 40 5 txt Text pdf PDF ps PS stdout Stdout 2>&1 >$(tty))
+            DeadYet
+    # Need to do a condition test for menulevel=0
+            ;;
+    esac
+    if [ "$DEFEXT" = "stdout" ]; then
+        DEFEXT=txt
+           # Add stdout flag
+        STDOUT=1
+    fi
+    if [ "$menulevel" -gt 0 ]; then
+        ParseSwitch
+    fi
+}
+
+KMenuGroup() { # Kilo (thousand)
+# Original comments:
+# This list will need to be expanded when the RFCs get beyond 4999
+# ... otherwise I'll make it a brighter program that works out what the maximum
+# values are from MAXVAL - we do have a MAXK value I ought to learn to leverage.
+# New comments:
+# Contributed bit of code to leverage MAXK for menus. 
+# Only hassle is, it doesn't show for files: [MAXVAL..MAXREMOTEVAL]
+    K=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
+        0 rfc1-rfc999 \
+        $(for ((i=1;i<=MAXK;i++)) ; do echo -n "${i}000 rfc${i}000-rfc${i}999 "; done) \
+        2>&1 1>$(tty))
+    retval=$?
+    # Reason for this is because rfc filenames are not zero-padded,
+    # even though their entries in rfc-ref are zero-padded, so we have to provide
+    # a variable either way.
+    M=$(($K/1000))
+    Ma=$(($K/1000))
+    if [ $M -eq 0 ]; then
+        M=""
+    fi
+}
+
+#        1000 rfc1000-rfc1999 \
+#        2000 rfc2000-rfc2999 \
+#        3000 rfc3000-rfc3999 \
+#        4000 rfc4000-rfc4999 \
+
+HMenuGroup() { # Hecto (hundred)
+    local MYVAL
+#        if [ $Ma -le $MAXK ]; then
+    MYVAL=9
+#        else
+#          MYVAL=$MAXH
+#        fi
+    H=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 )) \
+        0 rfc"$M"000-rfc"$M"099 \
+        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}00 rfc$M${i}00-rfc$M${i}99 "; done) \
+        2>&1 1>$(tty))
+    retval=$?
+    C=$(($H/100))
+    Ca=$(($H/100))
+    if [ "$M" = "" ]; then
+        if [ $C -eq 0 ]; then
+            C=""
+        fi
+    fi
+}
+
+TMenuGroup() { # Tens
+    local MYVAL
+    MYVAL=9
+    T=$($MyDialog --title "Supplied RFCs" --menu "RFC master list" "$MYLINES" 40 $(( $MYLINES - 7 ))  \
+        0 rfc"$M$C"00-rfc"$M$C"09 \
+        $(for ((i=1;i<=MYVAL;i++)) ; do echo -n "${i}0 rfc$M$C${i}0-rfc$M$C${i}9 "; done) \
+        2>&1 1>$(tty))
+    retval=$?
+    X=$(($T/10))
+    Xa=$(($T/10))
+    if [ "$M" = "" ]; then
+        if [ "$C" = "" ]; then
+            if [ $X -eq 0 ]; then
+                X=""
+            fi
+        fi
+    fi
+}
+
+
+# ... and finally, the last menu. This is the one that shows available titles.
+
+SubMenuGroup() { # Units
+# We might as well just do the [b[z]]grep once, instead of up to ten times.
+# we can do a normal grep once we have the file in text form.
+# not only that, but we might as well use our MYFILE for the tempfile - it will
+# be written over each time we either check out a RFC, or we create this list.
+# also, we have to allow for $TITLES from non-compressed format, or gzip
+# hmmm... could I replace these with GoCat?
+# ZD: Now this is pretty code :)
+    if [ -f "${PLACE}rfc$TITLES.txt.bz2" ]; then
+        bzgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.bz2 > $MYFILE
+    elif [ -f "${PLACE}rfc$TITLES.txt.gz" ]; then
+        zgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.gz > $MYFILE
+    elif [ -f "${PLACE}rfc$TITLES.txt" ]; then
+        grep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt > $MYFILE
+    fi
+
+#    DescArray=($(cat $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g'))
+# Theoretically, this could have used one test, and just listed the titles
+# regardless of whether we HAD them or not, but I wanted an indication of
+# the files if they were missing in local store
+#    for I in 0 1 2 3 4 5 6 7 8 9; do
+      # I'm sure this ought to be simpler; one test, instead of 8
+#        if [ -f rfc"$M$C$X$I"."${DEFEXT}".bz2 ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".txt ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".txt.pdf ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".pdf ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".ps ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+#        else
+#            D[$I]="N"; B[$I]="$I missing"
+#        fi
+#    done
+    ############## New Code #################
+    # New code to replace the for loop above, don't put it into action until we're sure
+    # that we have it all correct. This has the advantage of ONLY checking *.$DEFEXT.*
+    for I in 0 1 2 3 4 5 6 7 8 9; do
+      case $DEFEXT in
+        txt)
+          if [ -f rfc"$M$C$X$I".txt.bz2 ]; then
+#            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^\"]*\"(.*)\"\,.*/\1/' -e 's/"/\\"/g' )"
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          elif  [ -f rfc"$M$C$X$I".txt.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          elif  [ -f rfc"$M$C$X$I".txt ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          else
+            D[$I]="N"; B[$I]="$I missing"
+          fi
+        ;;
+        pdf) 
+          if  [ -f rfc"$M$C$X$I".txt.pdf ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          elif  [ -f rfc"$M$C$X$I".pdf ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          elif  [ -f rfc"$M$C$X$I".pdf.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          else
+            D[$I]="N"; B[$I]="$I missing"
+          fi
+        ;;
+        ps)
+          if  [ -f rfc"$M$C$X$I".ps ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          elif  [ -f rfc"$M$C$X$I".ps.gz ]; then
+            D[$I]=$I; B[$I]="$I $(grep "^RFC$Ma$Ca$Xa$I " $MYFILE | sed -r -e 's/[^"]*"(.*)",.*/\1/' )"
+          else
+            D[$I]="N"; B[$I]="$I missing"
+          fi
+        ;;
+      esac
+    done
+    ############## End of new code ######################
+  # Another string builder created from the previous for loop
+    for ((this=0;this<10;this++)) do
+      that=$(( $this * 2 )); 
+      munchstring[that++]="$this"
+      munchstring[that++]="rfc$M$C$X${B[$this]}"
+    done
+    # ... and the resulting menu
+    U=$($MyDialog --title "Supplied RFCs" --menu "RFC Decimal" "$MYLINES" "$(( $MYX - 2 ))" $(( $MYLINES - 7 )) "${munchstring[@]}" \
+        2>&1 1>$(tty))
+    retval=$?
+}
+
 
 ############## trial code ###########################
 ##############################################################################

@@ -1,0 +1,31 @@
+The rfcshow program searches and displays Requests For Comment (rfc)
+documents in text format, either as plain text files or compressed with
+any of bzip2, gzip or lzma.
+
+On the way:
+* documents in pdf/ps/html formats.
+* download and compression of documents not already fetched.
+* update locally stored documents to match available documents.
+* support for bcp/fyi/std documents.
+
+I (brickviking) am providing the hosting and initial concepts, and some
+code, Zero_Dogg is providing other code, and lots of his experience.
+
+At the moment, the instructions are really really simple:
+* Install the following programs:
+  + ncftp3, wget or curl. expect is an idea, but not mandatory.
+  + some compression program such as gzip, lzma, or another single-file
+    compression program. Not Zip/7z/RAR etc etc...
+* Install the lzma package (or compile/install it) - this program uses
+the binary program called unlzma from the package.
+* Create a directory to store rfc documents in - several ideas
+are:
+  + /usr/share/doc/rfc
+  + /usr/local/share/doc/rfc
+  + $HOME/rfcs
+  + $HOME/rfcshow
+N.B. Debian also stores RFCs in subdirectories, I'm not aware of how
+the mapping is done, nor even if it's up to date.
+* make the rfcshow script executable. (chmod +x rfcshow)
+* execute it.
+* Install it in a directory, if necessary.

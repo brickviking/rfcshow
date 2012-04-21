@@ -2,7 +2,7 @@
 # vim: tw=0: ww=0:
 # Copyright (C) 2005 Eric Gillespie
 # Copyright under the GNU Public License Version 2
-Revision=43
+Revision=46
 Minor=0.9
 
 # ZD: -- for long, - for short, the other way around is annoying
@@ -10,9 +10,15 @@ Minor=0.9
 # Reformatted. See?
 
 ######################### Requirements #############################
-# ncftp, bash, expect (not mandatory, but it needs tcl installed), 
-# b(un)zip2, g(un)zip, bzgrep, zgrep, grep, cut, cat, sort (?)
+# ncftp, bash, a console or terminal (xterm, kterm, gnome-terminal, etc.)
+# Any ONE of the following compression programs:
+# b(un)zip2, g(un)zip, 
+# Any ONE of the following grep programs:
+# bzgrep, zgrep, grep, 
+# The following programs (normally part of coreutils)
+# cut, cat, wc, sort (?)
 # and perl (this'll possibly change to sed)
+# expect (not mandatory, but it needs tcl installed) 
 ######################### Requirements #############################
 ######################### Instructions #############################
 
@@ -39,6 +45,8 @@ Minor=0.9
 # $ST (searchterm) = $1; cat $RFC | sed -e '/./{H;$!d;}' -e 'x;/'"$ST"'!d' > $MYFILE
 #
 # Multiple terms could WELL be used with this.
+# I could also use getopts, as it's a builtin for later versions of
+# bash (2.05 or later, I'm not sure about 1.x).
 
 ######################### Instructions #############################
 
@@ -101,6 +109,7 @@ if [ -z "$MYBZGREP" ]; then
 # Had to hack one in, as one wasn't found on the machine.
 # This is a VERY simple version, and as such, has some limitations
 # like: only one search term, without spaces
+# theoretically, I could have that as last arg, this as everything else
     bzgrep() {
         this="$1"
         that="$2"
@@ -114,6 +123,7 @@ if [ -z "$MYZGREP" ]; then
 # Had to hack one in, as one wasn't found on the machine.
 # This is a VERY simple version, and as such, has some limitations
 # like: only one search term, without spaces
+# theoretically, I could have that as last arg, this as everything else
     zgrep() {
         this="$1"
         that="$2"
@@ -147,7 +157,7 @@ CONTACT_TIMEOUT=60
 # Here, we choose which getting mechanism we want. I use ncftpget, but others
 # can be set up, such as lynx, wget, or curl.
 # Here's options for href, as an example
-# lynx -dump http://www.rfc-editor.org/cgi-bin/rfcdoctype.pl?loc=RFC\&letsgo=822\&type=ftp\&file_format=txt
+# lynx -dump "http://www.rfc-editor.org/cgi-bin/rfcdoctype.pl?loc=RFC&letsgo=822&type=ftp&file_format=txt"
 # Why don't we ask the user which one they want of the ones we've found? 
 # $MyDialog --title "$ME: query" --radio ...
 MYNCGET=$(type -p ncftpget 2>/dev/null)
@@ -157,7 +167,7 @@ MYWGET=$(type -p wget 2>/dev/null)
 MYCURL=$(type -p curl 2>/dev/null)
 # Now, it's time to select something to fetch with
 # We really DON'T want to use ftp unless we absolutely HAVE to
-# For the moment, until I unwire the logic, I'm selecting ncftpget
+# For the moment, until I unwire the logic, I'm selecting curl
 # but it'll be replaced by the third line below
 MYT1=${MYCURL:-$MYNCGET}
 #MYT2=${MYWGET:-$MYLYNX}
@@ -179,17 +189,19 @@ case $MYGET in
     # a ftp document... We want wget to be totally quiet but this won't prevent
     # it from downloading a dir listing.
         MYGETPARM=" -q "
+        MY2GETPARM=" -nv "
         ;;
     $MYCURL)
     # We want curl to be totally quiet
-        MYGETPARM=" -so "
+        MYGETPARM=" -m300 -so "
+        MY2GETPARM=" -m300 -#o "
         MYLSPARM=" -sI "
         MYDIRPARM=" -sl "
 # Interesting. Curl can give me the file size of a specific file, just by using -I.
 # Could be a way of losing the expect script and dep;  the only problem then being
 # that we _require_ curl
         ;;
-    *)
+     *) # hmm, seems we don't have a fetching agent
         echo "Whoops - shouldn't have got here: got $MYGET - hit enter to continue"
         read mumble
         ;;
@@ -206,6 +218,7 @@ TitleError="$ME-$Minor.$Revision: error"
 ############################################################################################
 # A resizing function to be called when SIGWINCH is picked up
 # by the shell. This needs to be called from trap:  trap ReSize SIGWINCH
+# ! This won't work under Solaris, as stty doesn't work the same way
 ############################################################################################
 
 ReSize() {
@@ -220,6 +233,19 @@ ReSize() {
         MYLISTX=$MYX
     fi
     MYLINES=$MYY
+}
+
+##################################################################
+# A utility routine to politely terminate, not just pull plug.
+##################################################################
+CtlChalt() {
+			$MyDialog --title "$ME: query" --yesno "Do you wish to exit $ME?" 5 45
+      retval=$?
+      if [ $retval = 0 ]; then
+        exit
+      else
+        TaskSelect
+      fi
 }
 
 ##################################################################
@@ -246,7 +272,7 @@ StartMeUp() {
 		case $OSTYPE in
 		linux*)
 		case $MyDialog in "$MYKDIALOG")
-			$MyDialog --title "$ME" --msgbox "Processing - please wait"
+			$MyDialog --title "$ME" --msgbox "Processing - please wait" 5 25
 			sleep 2
 			;;
 						*)
@@ -266,11 +292,12 @@ StartMeUp() {
 
 Format() {
   # Here we choose whether to get/use rfc,bcp,fyi or std documents
-  FormatArray=( "bcp" "Best common practices" "off" "fyi" "For Your Information" "off" "rfc" "Requests For Comments" "on" "std" "Standards" "off" )
+  FormatArray=( "rfc" "Requests for Comments" "on" "bcp" "Best common practices" "off" "fyi" "For Your Information" "off" "std" "Standards" "off" )
   FORMAT=$( $MyDialog --title "Choose format" --radiolist "Please choose format" 12 40 5 "${FormatArray[@]}" 2>&1 >$(tty))
   retval=$?
   case $retval in 
     1)
+# ! I need to fix this exit, it's illogical
     echo "Sorry, dumping"
     exit
     ;;
@@ -289,6 +316,7 @@ Format() {
       THEREPLACE="$REMOTEPLACE$FORMAT/"
       MYMAXVAL=$MAXSTDVAL
       ;;
+      # This catches whats left - rfc; if it's not, there's something else wrong.
       *) HEREPLACE="$PLACE" 
       THEREPLACE="$REMOTEPLACE"
       MYMAXVAL=$MAXVAL
@@ -301,6 +329,12 @@ Format() {
 MyNotify() {
 # Small number of lines of message text
   Value=$($MyDialog --title "$TitleNotify" --msgbox "$@" $MYLINES $MYMINX 2>&1 >&$(tty))
+  retval=$?
+}
+
+MyInfo() {
+# Small number of lines of message text
+  Value=$($MyDialog --title "$TitleNotify" --infobox "$@" $MYLINES $MYMINX 2>&1 >&$(tty))
   retval=$?
 }
 
@@ -436,7 +470,7 @@ PdfEngine() {
 # we would clean up behind us, however.
 # ZD: NEVER EVER(!!!) rm -rf a file, always rm -f, if 
 # ZD: the file turns out to be something else, things can get messy
-    rm -f $MYFILE.pdf
+    rm -f "$MYFILE.pdf"
 }
 
 PsEngine() {
@@ -463,7 +497,7 @@ PsEngine() {
 # Comment out the next line if you want a copy to be left behind - normally
 # we would clean up behind us, however.
 # ZD: rm -rf again
-    rm -f $MYFILE.ps
+    rm -f "$MYFILE.ps"
 }
 
 RenderCore() {
@@ -488,24 +522,28 @@ RenderCore() {
 #    echo "Trying in $HEREPLACE for $RFCFile.$DEFEXT"
 #    read mubrle
     if [ "`ls $HEREPLACE | grep -e $RFCFile.$DEFEXT`" ]; then
-      MyStatus "Entering GoCat"
+      MyStatus "Entering GoCat, with  HEREPLACE: $HEREPLACE, RFCFile $RFCFile, DefEXT: $DEFEXT"
   #  file-type detection and decompression as per type
-      if [ -f $HEREPLACE/$RFCFile.$DEFEXT ]; then
+      if [ -f "$HEREPLACE$RFCFile.$DEFEXT" ]; then
         case $DEFEXT in 
             pdf) 
+                MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
                 GoCat > $MYFILE.pdf
                 PdfEngine ;;
             txt) 
+                MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
                 GoCat | tr -d '\014\015' > $MYFILE
                 RfcEngine ;;
             ps) 
+                MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
                 GoCat > $MYFILE.ps
                 PsEngine ;;
         esac
-      elif [ -f $HEREPLACE/$RFCFile.txt.gz ]; then
+      elif [ -f "$HEREPLACE$RFCFile.txt.gz" ]; then
+                MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
         GoCat | tr -d '\014\015' > $MYFILE
         RfcEngine
-      elif [ -f $HEREPLACE/$RFCFile.txt.bz2 ]; then
+      elif [ -f "$HEREPLACE$RFCFile.txt.bz2" ]; then
 #  RfcEngine
         if [ "$Val" = "-ref" ]; then
           if [ "$FORMAT" = "rfc" ]; then
@@ -517,42 +555,45 @@ RenderCore() {
             echo "Sorry, the document $FORMAT-ref doesn't exist." > $MYFILE
           fi
         else
+          MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
           GoCat | tr -d '\014\015'> $MYFILE
         fi
         RfcEngine
-      elif [ -f $HEREPLACE/$RFCFile.txt ]; then
+      elif [ -f "$HEREPLACE$RFCFile.txt" ]; then
+        MyStatus "$HEREPLACE$RFCFile.$DEFEXT found"
         GoCat | tr -d '\014\015' > $MYFILE
         RfcEngine
 # Now we shift a notch - we've got problems here, if we haven't
 # selected pdf or ps, but we have it INSTEAD of the .txt, then
 # our user's gonna get a surprise. Breaks the TAOUP "least surprise" rule.
 # Other alternative is where we've called for pdf, but we have txt
-      elif [ -f $HEREPLACE/$RFCFile.pdf ]; then
+      elif [ -f "$HEREPLACE$RFCFile.pdf" ]; then
+        GoCat > "$MYFILE.pdf"
+        PdfEngine
+      elif [ -f "$HEREPLACE$RFCFile.pdf.gz" ]; then
         GoCat > $MYFILE.pdf
         PdfEngine
-      elif [ -f $HEREPLACE/$RFCFile.pdf.gz ]; then
+      elif [ -f "$HEREPLACE$RFCFile.txt.pdf" ]; then
         GoCat > $MYFILE.pdf
         PdfEngine
-      elif [ -f $HEREPLACE/$RFCFile.txt.pdf ]; then
+      elif [ -f "$HEREPLACE$RFCFile.txt.pdf.gz" ]; then
         GoCat > $MYFILE.pdf
         PdfEngine
-      elif [ -f $HEREPLACE/$RFCFile.txt.pdf.gz ]; then
-        GoCat > $MYFILE.pdf
-        PdfEngine
-      elif [ -f $HEREPLACE/$RFCFile.ps ]; then
+      elif [ -f "$HEREPLACE$RFCFile.ps" ]; then
         GoCat > $MYFILE.ps
         PsEngine
-      elif [ -f $HEREPLACE/$RFCFile.ps.gz ]; then
+      elif [ -f "$HEREPLACE$RFCFile.ps.gz" ]; then
         GoCat > $MYFILE.ps
         PsEngine
       else
         MyError "$ME-$Minor.$Revision: What the hey?  I fell out of RenderCore with no result. Hit enter to continue"
       fi
     elif [ "`ls $HEREPLACE | grep -e $RFCFile.txt.$DEFEXT`" ]; then
-      GoCat > $MYFILE.pdf
+      GoCat > "$MYFILE.pdf"
       PdfEngine
-      rm  -f $MYFILE.pdf
+      rm  -f "$MYFILE.pdf"
     else
+      MyStatus "gotta wonder"
   # Weakness here - we never check negative numbers or non-numbers.
       if [ "$Val" = 0 ]; then
         MYLINES=11
@@ -562,7 +603,7 @@ RenderCore() {
 # here that 0 shows up, but can't (obviously) be downloaded. Hence the addition of the previous code
 # ZD: Perhaps you should write a wrapper for your dialogs so that you can easily
 # ZD: add other interfaces (ask me about xmsg)
-        case $FORMAT in 
+        case "$FORMAT" in 
           bcp|fyi|std)
             $MyDialog --title "$ME-$Minor.$Revision: error!" --yesno "Sorry, $FORMAT$Val.$DEFEXT is not in this database.\n\
 $ME -index will give you the current documents here.\n\
@@ -1036,7 +1077,7 @@ TaskSelect() {
 # I'm still working out how to integrate BCP/FYI/STDs to this listing 
     menulevel=1
 #    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 9 "Pick RFC by number from list" K "Text RFCs without number" D "Directory of local RFCs" I "RFC Index (total)" C "Check titles" S "Search RFC Index" T "Show title of RFC" G "Get single RFC" R "Get RFC Range" L "Get Latest available RFCs" X Exit )
-    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 0 "Pick RFC by number from list" N "Text RFCs without number" 9 "Directory of local RFCs" C "Check titles from index" / "Search RFC Index" T "Show title of RFC from index" G "Get single RFC" R "Get RFC Range" L "Get Latest available RFCs" I "RFC Index" F "FYI index" S "STD index" B "BCP Index" X Exit )
+    MyString=( H 'Help! Help!' 1 "View single RFC by number" 2 "View Range of RFCs" 0 "Pick RFC by number from list" N "Text RFCs without number" 9 "Directory of local RFCs" C "Check titles from index" / "Search RFC Index" T "Show title of RFC from index" G "Get single RFC" R "Get RFC Range" L "Get all Latest available RFCs" I "RFC Index" F "FYI index" S "STD index" B "BCP Index" X Exit )
     if [ "$MyDialog" = "$MyKDialog" ]; then
       Out=$($MyDialog --title "$ME-$Minor.$Revision: Select" --menu "Select task: latest local RFC $MAXVAL" "${MyString[@]}" 2>&1 )
       retval=$?
@@ -1086,7 +1127,9 @@ TaskSelect() {
             ;;
         H) Q=--help ;;
         I) Q=rfc-index ;;
-        L) Q=--getlatest ;;
+        L) Format
+        Q=--getlatest 
+        ;;
         N) Q=--itemlist ;;
         R) Format
         PromptForNumber "Bottom of range"
@@ -1203,11 +1246,11 @@ SubMenuGroup() { # Units
 # also, we have to allow for $TITLES from non-compressed format, or gzip
 # hmmm... could I replace these with GoCat?
 # ZD: Now this is pretty code :)
-    if [ -f ${PLACE}rfc$TITLES.txt.bz2 ]; then
+    if [ -f "${PLACE}rfc$TITLES.txt.bz2" ]; then
         bzgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.bz2 > $MYFILE
-    elif [ -f ${PLACE}rfc$TITLES.txt.gz ]; then
+    elif [ -f "${PLACE}rfc$TITLES.txt.gz" ]; then
         zgrep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt.gz > $MYFILE
-    elif [ -f ${PLACE}rfc$TITLES.txt ]; then
+    elif [ -f "${PLACE}rfc$TITLES.txt" ]; then
         grep "^RFC$Ma$Ca$Xa[0-9] " ${PLACE}rfc$TITLES.txt > $MYFILE
     fi
 
@@ -1301,7 +1344,13 @@ PromptForNumber() {
 
 ChooseList() {
   MYVAL=${#VarArray[@]}
+##########################################
 # Here, we have to choose what RFCs I want to choose titles for.
+# ! Oh. This only works when searching from the
+#   rfc search, not the std/bcp/fyi indexes.
+#   We need to figure out how to search rfc-ref more intelligently.
+##########################################
+
 # Time for a for loop, though I'm commenting it right out of place until I have what I want.
   echo "" > $MYFILE # clear out the file
   for this in ${VarArray[@]}; do
@@ -1377,15 +1426,19 @@ ParseLatestList() {
   if [ "$MYGET" ]; then
       case $FORMAT in bcp)
         GotMyDir=$GotBCPDir
+        THEREPLACE="$REMOTEPLACE$FORMAT/"
         ;;
         fyi)
         GotMyDir=$GotFYIDir
+        THEREPLACE="$REMOTEPLACE$FORMAT/"
         ;;
         rfc)
         GotMyDir=$GotDir
+        THEREPLACE="$REMOTEPLACE"
         ;;
         std)
         GotMyDir=$GotSTDDir
+        THEREPLACE="$REMOTEPLACE$FORMAT/"
         ;;
       esac
       if [ -z "$GotMyDir" ]; then
@@ -1395,8 +1448,13 @@ ParseLatestList() {
                     $MYNCLS $MYLSPARM $THEREPLACE > $FORMAT$DIRLIST ;;
                 *) 
 #                MYLINES=7
-#                MyNotify "Now calling curl on $THEREPLACE" 7 40
-                $MYGET $MYDIRPARM $THEREPLACE > $FORMAT$DIRLIST ;;
+                MyStatus "Now calling curl with $MYDIRPARM on $THEREPLACE and outputting to $FORMAT$DIRLIST"
+
+                $MYGET $MYDIRPARM $THEREPLACE > $FORMAT$DIRLIST
+                MyStatus "$MYGET $MYDIRPARM $THEREPLACE > $FORMAT$DIRLIST ... done"
+                # ! Why didn't this next line work???
+#                $MyDialog --textbox 55 78 $FORMAT$DIRLIST
+                ;;
             esac
             Val=$?
     # This is where error returns would need tailoring. curl uses 19 for (file not there) and 6 (site not there)
@@ -1466,6 +1524,7 @@ ncftp3, curl, lynx, or wget installed" 11 50
 # a routine that checks the remote file's size against local version
 # giving us RemoteSize1-3 as remote sizes, LocalSize1-3 as local sizes
 # and compares them, replying with a string "build" of files to download
+# This is too specific.
 #########################################################################
 
 CheckSize() {
@@ -1508,27 +1567,61 @@ send \"close\n\"" | tail -6 | tr -d '\015')
     elif [ "$MYGET" -a "$MYGET" = "$MYCURL" ]; then
 # we can get the filesizes directly with curl
         if [ "$FORMAT" = "rfc" ]; then
-          MyStatus "Fetching sizes of rfc files"
-          RemoteSize1=$(curl -I $REMOTEPLACE$RFC_FILE1 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
-          RemoteSize2=$(curl -I $REMOTEPLACE$RFC_FILE2 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
-          RemoteSize3=$(curl -I $REMOTEPLACE$RFC_FILE3 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
+          MyStatus "Fetching sizes from $REMOTEPLACE of rfc files $RFC_FILE1, $RFC_FILE2, and $RFC_FILE3"
+          MYOLD=$MYLINES
+          MYLINES=10
+          MyInfo "Fetching sizes from $REMOTEPLACE of rfc files $RFC_FILE1, $RFC_FILE2, and $RFC_FILE3"
+          RemoteSize1=$(curl -I $REMOTEPLACE$RFC_FILE1 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015 ' )
+          RemoteSize2=$(curl -I $REMOTEPLACE$RFC_FILE2 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015 ' )
+          RemoteSize3=$(curl -I $REMOTEPLACE$RFC_FILE3 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015 ' )
+          MyStatus "Sizes fetched, values are: $RemoteSize1, $RemoteSize2, and $RemoteSize3."
+          MYLINES=$MYOLD
           SizeRemoteLocal
         else
           MyStatus "Fetching size of $FORMAT-index"
           RemoteSize1=$(curl -I $REMOTEPLACE$FORMAT/$FORMAT-index.txt  2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015' )
+          # ! Ooops - doesn't work for bcp/fyi/std-index, and for some reason, it doesn't
+          #   download it?
           RFCFile="$FORMAT-index"
+          MyStatus "Entering GoCat with RFCFile=$RFCFile"
           GoCat > $MYFILE
-          LocalSize1=$(ls -l $MYFILE | cut -d' ' -f6)
+          MyStatus "Exited GoCat, MYFILE is $MYFILE"
+          # ! Huh? What's the size - field 5 is the size???
+          LocalSize1=$(ls -l $MYFILE | cut -d' ' -f5)
+          MyStatus "LocalSize1 = $LocalSize1, for MyFile $MYFILE"
           if [ "$LocalSize1" -ne "$RemoteSize1" ]; then
             build="$FORMAT-index "
             MyStatus "Sizes differ, adding $build to the download list"
           fi
         fi
     else
+      # ! Should this be a MyError now?
         $MyDialog --title "$ME-$Minor.$Revision: error" --msgbox "I cannot download filelist, you don't have\n\
 ncftp3, or curl installed" 11 50
 # ncftp3, curl, lynx, or wget installed" 11 50
     fi # End of "if myget=mycurl" || if myget=myncget || puke
+}
+
+# sizecheck from somewhere...
+CheckSingleSize() {
+  # We ought to have remotesite, format by now, we can retrieve local size and 
+  # remote size of local file.
+  case $MYGET in 
+    "$MYNCGET")
+    ;;
+    "$MYCURL") # Anything else, say curl?
+    MyStatus "Getting size of $REMOTEPLACE$REMOTEFILE to compare against local"
+    RemoteSizeS=$($MYGET -I $REMOTEPLACE$REMOTEFILE 2>/dev/null | grep "Length" | cut -d: -f2 | tr -d '\015 '  )
+    ;;
+  esac
+  # Now we've got the size of the remote file in RemoteSizeS (single) then we
+  # need to check it against our local size.
+  RFCFile=$HEREPLACE$REMOTEFILE
+  GoCat > $MYFILE
+  # This line REALLY needs changing
+  LocalSizeS=$(ls -l $MYFILE | cut -d' ' -f5)
+  MyStatus "Remote size $RemoteSizeS, local size $LocalSizeS"
+
 }
 
 ############################################################
@@ -1539,22 +1632,28 @@ SizeRemoteLocal() {
 # * Now that we have the remote sizes, what about our copies (if any)?
 #   First, we have to GoCat into a temp file, to get the uncompressed size
 # !  We've struck a possible bug with ls not always supporting -l
+# * Solved, assuming that wc always supports -c
 ########################
+    MyStatus "Entering SizeRemoteLocal"
+    # Would $MyCat | wc -c  give me a shorter test?
     RFCFile="$FORMAT-index"
-    GoCat > $MYFILE
-    LocalSize1=$(ls -l $MYFILE | cut -d' ' -f6)
-    RFCFile=-"$FORMAT-ref"
-    GoCat > $MYFILE
-    LocalSize2=$(ls -l $MYFILE | cut -d' ' -f6)
+    LocalSize1=$(GoCat | wc -c)
+#    GoCat > $MYFILE
+#    LocalSize1=$(ls -l $MYFILE | cut -d' ' -f6)
+    RFCFile="$FORMAT-ref"
+    LocalSize2=$(GoCat | wc -c)
+#    GoCat > $MYFILE
+#    LocalSize2=$(ls -l $MYFILE | cut -d' ' -f6)
     RFCFile="${FORMAT}xx00"
-    GoCat > $MYFILE
-    LocalSize3=$(ls -l $MYFILE | cut -d' ' -f6)
+    LocalSize3=$(GoCat | wc -c)
+#    GoCat > $MYFILE
+#    LocalSize3=$(ls -l $MYFILE | cut -d' ' -f6)
 # now we clean up after ourselves
 # ZD: Now this shows how dangerous rm -rf can be, what if MYFILE for *SOME* reason is $HOME ?
 # EG: MYFILE is NEVER $HOME, it's always /tmp/rfctemprfc, as shown at the top
 #     of the file 8-)
 # ZD: then you're in trouble, or /? It'll start removing stuff carelessly
-    rm -f $MYFILE
+#    rm -f $MYFILE
     if [ "$LocalSize1" -ne "$RemoteSize1" ]; then
         build="-index "
     fi
@@ -1564,6 +1663,13 @@ SizeRemoteLocal() {
     if [ "$LocalSize3" -ne "$RemoteSize3" ]; then
         build="$build xx00 "
     fi
+    MYLINES=10
+    if [ "$build" ]; then
+      MyInfo "Sizes fetched, values are: $RemoteSize1, $RemoteSize2, and $RemoteSize3.\nLocal sizes are:           $LocalSize1, $LocalSize2, and $LocalSize3\nBuild will be: $build, and I'm now downloading a filelist to compare local against."
+    else
+      MyInfo "Sizes fetched, values are: $RemoteSize1, $RemoteSize2, and $RemoteSize3.\nLocal sizes are:           $LocalSize1, $LocalSize2, and $LocalSize3\nI'm now downloading a filelist to compare local against."
+    fi
+          sleep 5 # hopefully long enough to read the message
     # Now, I need to sort out what the hey is going on
 }
 
@@ -1572,10 +1678,12 @@ SizeRemoteLocal() {
 #       that it is also the latest available.
 
 FetchLatest() {
+  MYOLD=$MYLINES
   MYLINES=10
   MyNotify "We're getting the $FORMAT list. \n
   This'll take a wee while, please wait after hitting Enter"
-    CheckSize  
+  MYLINES=$MYOLD
+  CheckSize  
 # The idea here is that we go from our latest to their latest, and try to download everything in between
 # Of course, we could pass in a value to download FROM and TO.
 # Theoretically, if $build is empty, should we even download a listing? 
@@ -1586,6 +1694,7 @@ FetchLatest() {
 # This calls CheckSize, which then calls SizeRemoteLocal
 # if we're working with $FORMAT=rfc, else we just set $build to -index
   ParseLatestList
+  MyStatus "Done with ParseLatestList"
   case $FORMAT in 
     rfc)
     if [ "$MAXVAL" != "$MAXREMOTEVAL" ]; then # note that we do none of this if both values match
@@ -1600,13 +1709,16 @@ FetchLatest() {
         else
             BOTTOM=1
         fi
+        # There's a weakness here - sometimes the list isn't getting compared against reliably.
         for this in $build $(seq $BOTTOM 1 $MAXREMOTEVAL); do
           MyStatus "checking..."
           ############## rfc/std/bcp/fyi-dependent #############
           REMOTEFILE="$FORMAT""$this".$DEFEXT
           ############## rfc/std/bcp/fyi-dependent #############
           grep ^$REMOTEFILE $FORMAT$DIRLIST
-          if [ "$?" = 0 ]; then
+          retval=$?
+          if [ "$retval" -eq 0 ]; then
+            MyStatus "Downloading $REMOTEFILE, cos we found it in $FORMAT$DIRLIST"
             FetchSingle
           else
       #we can't download this one, continue on
@@ -1626,8 +1738,12 @@ FetchLatest() {
           ############## rfc/std/bcp/fyi-dependent #############
           REMOTEFILE="$FORMAT""$this".$DEFEXT
           ############## rfc/std/bcp/fyi-dependent #############
-          mumble=$(grep ^$REMOTEFILE $FORMAT$DIRLIST | tr -d '\015')
-          if [ "$?" = 0 ]; then
+          # ! I think there's an error with this line, and check of the error return.
+#          mumble=$(grep ^$REMOTEFILE $FORMAT$DIRLIST | tr -d '\015')
+          grep ^$REMOTEFILE $FORMAT$DIRLIST >/dev/null 2>&1
+          retval=$?
+          if [ "$retval" = 0 ]; then # ! This isn't valid, because tr hardly ever errors
+            MyStatus "$build - Downloading $REMOTEFILE, cos we found it in $FORMAT$DIRLIST"
             FetchSingle
           else
       #we can't download this one, continue on
@@ -1647,6 +1763,8 @@ FetchLatest() {
 # or go from 1 if we have less than rfc120.*  Only thing this doesn't catch is when we have
 # rfc docs lots later than 120 (like rfc3905 but nothing earlier)
 # We should only download if RemoteSize != LocalSize
+        MyStatus "Copying $FORMAT$DIRLIST to $FORMAT/"
+        cat $FORMAT$DIRLIST > $FORMAT/$FORMAT$DIRLIST
         if [ "$MAXBCPVAL" > 100 ]; then
           BOTTOM=$(( $MAXBCPVAL - 100 ))
         else
@@ -1657,7 +1775,11 @@ FetchLatest() {
           ############## rfc/std/bcp/fyi-dependent #############
           REMOTEFILE="$FORMAT""$this".$DEFEXT
           ############## rfc/std/bcp/fyi-dependent #############
-          grep ^$REMOTEFILE $FORMAT$DIRLIST
+          # ! We ACTUALLY have to do a size check for that file, just to
+          #   catch changes. That happens with these particular files.
+          #   That check is done inside FetchSingle, problem
+          MyStatus "grepping for ^$REMOTEFILE in $FORMAT/$FORMAT$DIRLIST"
+          grep ^$REMOTEFILE $FORMAT/$FORMAT$DIRLIST
           if [ "$?" = 0 ]; then
             FetchSingle
           else
@@ -1675,6 +1797,8 @@ FetchLatest() {
 # or go from 1 if we have less than rfc120.*  Only thing this doesn't catch is when we have
 # rfc docs lots later than 120 (like rfc3905 but nothing earlier)
 # We should only download if RemoteSize != LocalSize
+        MyStatus "Copying $FORMAT$DIRLIST to $FORMAT/"
+        cat $FORMAT$DIRLIST > $FORMAT/$FORMAT$DIRLIST
         if [ "$MAXFYIVAL" > 12 ]; then
             BOTTOM=$(( $MAXFYIVAL - 12 ))
         else
@@ -1685,7 +1809,11 @@ FetchLatest() {
           ############## rfc/std/bcp/fyi-dependent #############
           REMOTEFILE="$FORMAT""$this".$DEFEXT
           ############## rfc/std/bcp/fyi-dependent #############
-          grep ^$REMOTEFILE $FORMAT$DIRLIST
+          # ! We ACTUALLY have to do a size check for that file, just to
+          #   catch changes. That happens with these particular files.
+          #   That check is done inside FetchSingle, problem
+          MyStatus "grepping for ^$REMOTEFILE in $FORMAT/$FORMAT$DIRLIST"
+          grep ^$REMOTEFILE $FORMAT/$FORMAT$DIRLIST
           if [ "$?" = 0 ]; then
             FetchSingle
           else
@@ -1703,6 +1831,8 @@ FetchLatest() {
 # or go from 1 if we have less than rfc120.*  Only thing this doesn't catch is when we have
 # rfc docs lots later than 120 (like rfc3905 but nothing earlier)
 # We should only download if RemoteSize != LocalSize
+        MyStatus "Copying $FORMAT$DIRLIST to $FORMAT/"
+        cat $FORMAT$DIRLIST > $FORMAT/$FORMAT$DIRLIST
         if [ "$MAXSTDVAL" > 20 ]; then
             BOTTOM=$(( $MAXSTDVAL - 20 ))
         else
@@ -1713,7 +1843,11 @@ FetchLatest() {
           ############## rfc/std/bcp/fyi-dependent #############
           REMOTEFILE="$FORMAT""$this".$DEFEXT
           ############## rfc/std/bcp/fyi-dependent #############
-          grep ^$REMOTEFILE $FORMAT$DIRLIST
+          # ! We ACTUALLY have to do a size check for that file, just to
+          #   catch changes. That happens with these particular files.
+          #   That check is done inside FetchSingle, problem
+          MyStatus "grepping for ^$REMOTEFILE in $FORMAT/$FORMAT$DIRLIST"
+          grep ^$REMOTEFILE $FORMAT/$FORMAT$DIRLIST
           if [ "$?" = 0 ]; then
             FetchSingle
           else
@@ -1730,26 +1864,32 @@ FetchSingle() {
 # This routine checks to see if we have it, how about spinning that off to a separate function,
 # much like TestItsHere is supposed to do? We should really strip this function down to
 # purely getting the file, maybe spinning off the compress stage to another function
+  MyStatus "Entering FetchSingle using a $FORMAT document, and fetching $REMOTEFILE"
   case $FORMAT in 
     fyi|bcp|std) THEREPLACE="${REMOTEPLACE}$FORMAT/"
     HEREPLACE="${PLACE}$FORMAT/"
+    # ! These lines here are incorrect, they're in the wrong place. At this stage, we're NOT fetching,
+    #   merely setting UP to fetch, we haven't checked if they're already here.
     MyStatus "Mumble: $mumble; Fetching $REMOTEFILE, from $REMOTEPLACE$FORMAT"
     ;;
     rfc) THEREPLACE="$REMOTEPLACE"
     HEREPLACE="$PLACE"
-    MyStatus "Mumble: $mumble; Fetching $REMOTEFILE, from $REMOTEPLACE"
+    MyStatus "Mumble: $mumble; Fetching $REMOTEFILE, from $REMOTEPLACE, and THEREPLACE is $THEREPLACE"
+    MYLINES=10
     ;;
   esac
+  MYOLD=$MYLINES
   MYLINES=11
   case "$REMOTEFILE" in
       $FORMAT-menu) MyNotify "Get REAL! That file doesn't exist up there" ;;
       $FORMAT-list) MyNotify "Get REAL! That file doesn't exist up there!" ;;
       ${FORMAT}-retrieval.txt|${FORMAT}-index.txt|rfc-ref.txt|rfcxx00.txt|rfc-index-latest.txt)
       # Should we replace the copy in $PLACE, $INDEX, or $WRITEABLE?
-          $MYGET $MYGETPARM "$HEREPLACE$REMOTEFILE" "$THEREPLACE$REMOTEFILE" 
+          echo "$REMOTEFILE"
+          $MYGET $MY2GETPARM "$HEREPLACE$REMOTEFILE" "$THEREPLACE$REMOTEFILE" 
           retval=$?
           if [ $retval != "0" ]; then
-              MyStatus "$ME-$Minor.$Revision: Can't get file, got error $retval - perhaps try again later?"
+              MyStatus "$ME-$Minor.$Revision: Can't get file $REMOTEFILE, got error $retval - perhaps try again later?"
               sleep 2
           else
 # Now we get rid of the old one...
@@ -1783,11 +1923,12 @@ FetchSingle() {
           else # Okay, we don't have it - so go get it
             # Status, or Notify? Notify gets in the way, Status never gets seen.
               MyStatus "Getting $REMOTEPDFPLACE$REMOTEFILE"
+              echo "$REMOTEFILE"
 #                ncftpget -v "$REMOTEPLACE""pdfrfc/$REMOTEFILE" 
-              $MYGET $MYGETPARM "$REMOTEPDFPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
+              $MYGET $MY2GETPARM "$REMOTEPDFPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
               RetVal=$?
               if [ $RetVal != "0" ]; then
-                  MyStatus "$ME-$Minor.$Revision: Can't get file, got error $RetVal - perhaps try again later?"
+                  MyStatus "$ME-$Minor.$Revision: Can't get file $REMOTEFILE, got error $RetVal - perhaps try again later?"
               else
                   MyStatus "Okay, got it now"
                   if [ "$this" -gt "$MAXVAL" ]; then
@@ -1801,12 +1942,14 @@ FetchSingle() {
               $MyDialog --title "$ME-$Minor.$Revision: notify" --msgbox "We already have $REMOTEFILE" 8 50
           else # Okay, we don't have it - so go get it
               MyStatus "Getting $THEREPLACE$REMOTEFILE - please wait"
-              $MYGET $MYGETPARM "$THEREPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
+              echo "$REMOTEFILE"
+              $MYGET $MY2GETPARM "$THEREPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
               RetVal=$?
               if [ $RetVal != "0" ]; then
 # ! Hmm, this doesn't work for fyi et al.
                   REMOTEFILE=rfc$this.txt.pdf
-                  MyStatus "$ME-$Minor.$Revision: Can't get file, got error $RetVal - now trying $THEREPLACE""pdfrfc/$REMOTEFILE"
+                  MyStatus "$ME-$Minor.$Revision: Can't get file $REMOTEFILE, got error $RetVal - now trying $THEREPLACE""pdfrfc/$REMOTEFILE"
+              echo "$REMOTEFILE"
                   FetchSingle
               else
                   MyStatus "Okay, got $REMOTEFILE now"
@@ -1817,23 +1960,38 @@ FetchSingle() {
               fi
           fi
           ;;
-      *) if [ -f "$HEREPLACE/$REMOTEFILE.bz2" ]; then
+      *) # ! This check is incorrect for bcp/fyi/std, but not for rfc
+         #   We need to do a sizecheck on the file, compared to remote.
+         #   As a result, this if-ladder will have to be changed.
+          if [ -f "$HEREPLACE/$REMOTEFILE.bz2" ]; then
             MyStatus "We already have $REMOTEFILE.bz2"
+            if [ $FORMAT != "rfc" ]; then
+              CheckSingleSize
+            fi
           elif [ -f "$HEREPLACE/$REMOTEFILE.gz" ]; then
-          MyStatus "$ME-$Minor.$Revision: We already have $REMOTEFILE.gz"
+            MyStatus "$ME-$Minor.$Revision: We already have $REMOTEFILE.gz"
+            if [ $FORMAT != "rfc" ]; then
+              CheckSingleSize
+            fi
           elif [ -f "$HEREPLACE/$REMOTEFILE" ]; then
-          MyStatus "$ME-$Minor.$Revision: We already have $REMOTEFILE"
+            MyStatus "$ME-$Minor.$Revision: We already have $REMOTEFILE"
+            if [ $FORMAT != "rfc" ]; then
+              CheckSingleSize
+            fi
           else # Okay, we don't have it - so go get it
           if [ "$MYGET" ]; then
               MyStatus "Getting $THEREPLACE$REMOTEFILE"
-          $MYGET $MYGETPARM "$HEREPLACE$REMOTEFILE" "$THEREPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
+#              echo "$REMOTEFILE"
+          $MYGET $MY2GETPARM "$HEREPLACE$REMOTEFILE" "$THEREPLACE$REMOTEFILE" 2>&1 >>$STATUSFILE
           #    $MYGET $MYGETPARM "$THEREPLACE$REMOTEFILE" 
               RetVal=$?
 # 'Nother random thought - how about a TellGet() to tell us what happened (if anything)?
 # It'd be customised per invocation - i.e. curl returns differently than lynx/wget/ncftpget
-              MYLINES=10
+#              MYOLD=$MYLINES
+#              MYLINES=10
               if [ $RetVal != "0" ]; then
-                MyNotify "Can't get file, got error $RetVal - perhaps try again later?"
+                MyNotify "Can't get file $REMOTEFILE, got error $RetVal - perhaps try again later?"
+                MyStatus "Can't get file $REMOTEFILE, got error $RetVal"
               else
 # We should only bzip2 if it's txt, not otherwise - could be conflict with *.txt.pdf, however, that's 
 # covered in the above case
@@ -1856,13 +2014,15 @@ FetchSingle() {
               fi
               shift # Now that we have it (or not), we can move on
           else 
-              MYLINES=10
+#              MYLINES=10
               MyError "I cannot download filelist, you don't have\n\
 ncftp3, curl, lynx, or wget installed" 11 50
           fi
       fi
     ;;
   esac
+  # now reset the lines back to what they were.
+  MYLINES=$MYOLD
 } # End of FetchSingle
 
 FetchRange() {
@@ -1902,6 +2062,7 @@ FetchCore() {
 # couple of other routines
 # One important thing: what dir are we in?
 #########################################################
+    MyStatus "FetchCore starting with $Q using $MYGET to fetch $REST, using $FORMAT and $DEFEXT type"
     case $Q in
         -get|--get)
     # ! This should be restricted to those that have write permission
@@ -1981,6 +2142,7 @@ FetchCore() {
 # This is the new code to replace all the previous code in the previous func.
 # (... whatever that was called...)
 ParseSwitch() {
+    MyStatus "Entering ParseSwitch with value $Q"
     case $Q in
 # Fetch
         --get|-get|--getrange|-getrange|--getlatest|-getlatest) 
@@ -2051,26 +2213,30 @@ ParseSwitch() {
             ;;
         fyi-index) 
         FORMAT=fyi
-        HEREPLACE="${PLACE}$FORMAT"
+        HEREPLACE="${PLACE}$FORMAT/"
         Val=-index
+        MyStatus "Place: $PLACE Format: $FORMAT HerePlace: $HEREPLACE Val: $Val"
             RenderCore
           ;;
         bcp-index) 
         FORMAT=bcp
-        HEREPLACE="${PLACE}$FORMAT"
+        HEREPLACE="${PLACE}$FORMAT/"
         Val=-index
+        MyStatus "Place: $PLACE Format: $FORMAT HerePlace: $HEREPLACE Val: $Val"
             RenderCore
           ;;
         std-index) 
         FORMAT=std
-        HEREPLACE="${PLACE}$FORMAT"
+        HEREPLACE="${PLACE}$FORMAT/"
         Val=-index
+        MyStatus "Place: $PLACE Format: $FORMAT HerePlace: $HEREPLACE Val: $Val"
             RenderCore
           ;;
         rfc-index) 
         FORMAT=rfc
-        HEREPLACE="${PLACE}"
+        HEREPLACE="${PLACE}/"
         Val=-index
+        MyStatus "Place: $PLACE Format: $FORMAT HerePlace: $HEREPLACE Val: $Val"
             RenderCore
             ;;
         --prompt|-prompt)
@@ -2316,44 +2482,44 @@ BugAuthor() {
 
 GoCat() {
 # This routine finds a file, cats it to stdout if present
-#echo "DefExt: $DEFEXT; HEREPLACE/RFCFile.DEFEXT:  $HEREPLACE/$RFCFile.$DEFEXT"
+    MyStatus "HEREPLACE $HEREPLACE RFCFile.DEFEXT: $RFCFile.$DEFEXT"
     case $DEFEXT in 
         pdf) 
-            if [ -f $HEREPLACE/$RFCFile.$DEFEXT.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.$DEFEXT.bz2
-            elif [ -f $HEREPLACE/$RFCFile.txt.pdf.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.txt.pdf.bz2
+            if [ -f "$HEREPLACE/$RFCFile.$DEFEXT.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.$DEFEXT.bz2"
+            elif [ -f "$HEREPLACE/$RFCFile.txt.pdf.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.txt.pdf.bz2"
         # This finds both .txt.gz and .ps.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT.gz ]; then
-                zcat $HEREPLACE/$RFCFile.$DEFEXT.gz
-            elif [ -f $HEREPLACE/$RFCFile.txt.$DEFEXT.gz ]; then
-                zcat $HEREPLACE/$RFCFile.txt.$DEFEXT.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT ]; then
-                cat $HEREPLACE/$RFCFile.$DEFEXT
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT.gz" ]; then
+                zcat "$HEREPLACE/$RFCFile.$DEFEXT.gz"
+            elif [ -f "$HEREPLACE/$RFCFile.txt.$DEFEXT.gz" ]; then
+                zcat "$HEREPLACE/$RFCFile.txt.$DEFEXT.gz"
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT" ]; then
+                cat "$HEREPLACE/$RFCFile.$DEFEXT"
             fi
             ;;
         txt)
-            if [ -f $HEREPLACE/$RFCFile.$DEFEXT.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.$DEFEXT.bz2
-            elif [ -f $HEREPLACE/$RFCFile.txt.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.txt.bz2
+            if [ -f "$HEREPLACE/$RFCFile.$DEFEXT.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.$DEFEXT.bz2"
+            elif [ -f "$HEREPLACE/$RFCFile.txt.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.txt.bz2"
         # This finds both .txt.gz and .ps.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT.gz ]; then
-                zcat $HEREPLACE/$RFCFile.$DEFEXT.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT ]; then
-                cat $HEREPLACE/$RFCFile.$DEFEXT
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT.gz" ]; then
+                zcat "$HEREPLACE/$RFCFile.$DEFEXT.gz"
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT" ]; then
+                cat "$HEREPLACE/$RFCFile.$DEFEXT"
             fi
             ;;
         ps)
-            if [ -f $HEREPLACE/$RFCFile.$DEFEXT.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.$DEFEXT.bz2
-            elif [ -f $HEREPLACE/$RFCFile.txt.bz2 ]; then
-                bzcat $HEREPLACE/$RFCFile.txt.bz2
+            if [ -f "$HEREPLACE/$RFCFile.$DEFEXT.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.$DEFEXT.bz2"
+            elif [ -f "$HEREPLACE/$RFCFile.txt.bz2" ]; then
+                bzcat "$HEREPLACE/$RFCFile.txt.bz2"
         # This finds both .txt.gz and .ps.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT.gz ]; then
-                zcat $HEREPLACE/$RFCFile.$DEFEXT.gz
-            elif [ -f $HEREPLACE/$RFCFile.$DEFEXT ]; then
-                cat $HEREPLACE/$RFCFile.$DEFEXT
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT.gz" ]; then
+                zcat "$HEREPLACE/$RFCFile.$DEFEXT.gz"
+            elif [ -f "$HEREPLACE/$RFCFile.$DEFEXT" ]; then
+                cat "$HEREPLACE/$RFCFile.$DEFEXT"
             fi
             ;;
     esac
@@ -2399,6 +2565,10 @@ Search() {
 #    HEREPLACE=$PLACE
 #    RFCFile=rfc-index
       RFCFile=$FORMAT-index
+      #echo "HEREPLACE: $HEREPLACE; RFCFile: $RFCFile; DEFEXT: $DEFEXT"
+      # ! BAD MOVE! Bad doggie, bad!
+      #read -p "Hit Enter" mumble
+      #echo "Cool, continuing"
 # How about changing to $INDEX first? That would handle well.
 #cd $INDEX
     GoCat > $MYFILE
@@ -2582,6 +2752,7 @@ trap ReSize SIGWINCH
 #########
 # Should I also trap Ctl-C too?
 #########
+trap CtlChalt SIGINT
 
 noexit=1 # This is a noexit var - if it goes to 0, we leave. Simple, eh?
 # Test for these two regardless

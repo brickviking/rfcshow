@@ -1,9 +1,13 @@
+Original spec file from the bash version (with modern ST comments in brackets):
+-----------------------------------------------------
+
 Rfcshow should do the following:
 * provide a standard user GUI, with window and menus for interaction
-  + Menu should probably follow the usual <File> <Edit> <Help>
+  + Menu should probably follow the usual <File> <Edit> <Grab> <Help>
 * fetch documents from site either with ftp or http
 * update local store of documents from site.
 * store and compress successfully downloaded documents
+   *( What compression schemes does Cincom ST support? Squeak? GST?)
 * uncompress and display user-selected documents
 * search index for terms, displaying a list of matches.
   + I have a rudimentary perl search routine that displays an entry
@@ -28,17 +32,17 @@ Help:  Contents, About
 Approximation of window
 =======================
 
-,--------------------------------------------------------------------.
-| File   Edit     Grab       Help                                    |
+,------------------------------------------------------------.--------.
+| File   Edit     Grab       Help                                             |
 +--------------------------------------------------------------------+
-|                                                                    |
-|                                                                    |
-|     main content window                                            |
-|                                                                    |
-|                                                                    |
+|                                                                                            |
+|                                                                                            |
+|          main content window                                            |
+|                                                                                            |
+|                                                                                            |
 +--------------------------------------------------------------------+
-| <status area>                                                      |
-`--------------------------------------------------------------------'
+| <status area>                                                                  |
+`---------------------------------.-----------------------------------'
 
 
 ,--------------------------------------------------------------------.
@@ -107,12 +111,16 @@ Filestorage
 Files will get downloaded to either a global dir, or a local dir under user's
 $HOME. Program ought to look in both places, but only download to writable
 places.  Once textfiles are downloaded, compress for space. Uncompress docs into
-tempspace to display to user.
+tempspace to display to user. In Smalltalk, this will be trickier, but hopefully not impossible.
 
 Downloading
 -----------
+(Previous bash version)
 Use either wget, curl, or ncftp. If possible, support for all three.  Provide
 for status of downloading (bytes down, %done) in status bar.
+(Smalltalk version)
+Not sure what to use to fetch the documents yet. Again, provide status of download in status bar.
+
 
 First Startup:
 ==============
@@ -125,4 +133,4 @@ Download rfc-index.txt ,rfcxx00.txt and rfc-ref.txt from ftp site:
 That link can get stored into .rfcshowrc as place to get further docs from.
 Tarballs I've already described where to get from.
 
-
+An interesting touch would be to parse and use .rfcshowrc directly, but that's for further down the line. I have to presumably have some spec file somewhere, could be stored within the image.

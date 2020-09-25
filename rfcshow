@@ -36,7 +36,7 @@ Minor=0.9
 
 #    This will get the cross references file, the index, and titles.
 # *  After this, run the program as normal.
-#    rfc -help will get you some help to describe the options.
+#    rfcshow -help will get you some help to describe the options.
 
 # This could replace the perl script
 # sed -e '/./{H;$!d;}' -e 'x;/AAA/!d;/BBB/!d;/CCC/!d' 
@@ -64,7 +64,7 @@ TITLES=-ref
 # Only time this doesn't work is if you have a $HOME/rfc that's a file, 
 # and not a dir. Then, if none of the others exist, we're in trouble
 PLACES="/usr/share/doc/RFC/links/ /usr/share/doc/rfc/ $HOME/rfc/"
-# This MUST be a directory you have write access to, with enough room for say, 1Mb
+# This MUST be a directory you have write access to, with enough room for say, 200Mb
 MYDIR=/tmp
 # You COULD put it into your own dir, but then we'd have to create it if it didn't
 # already exist.
@@ -895,7 +895,7 @@ HelpHelp() {
   echo -ne "You're reading it! Yep! This help describes the Help section\n\
 of the rfcshow program. You navigate to an entry using the cursor keys\n\
 then hit <OK> to choose an entry. Select <Cancel> or the Exit menu entry \n\
-to leave. Basically, the same as anywhere else in the program.\n\
+to leave this help. Basically, the same as anywhere else in the program.\n\
 The remainder of the help screens describe the rest of the menu\n\
 interface, but it's pretty easy to follow through." > $MYFILE
 }

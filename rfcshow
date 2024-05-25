@@ -1536,6 +1536,7 @@ CheckSize() {
 # We also now rely on expect being present - if it's not, then we can't
 # go ahead, and have to fetch files regardless.
 ######################### WARNING ####################################
+# Should this be == (or -eq) instead of just =  ?    
     if [ "$MYGET" -a "$MYGET" = "$MYNCGET" ]; then
         MyExpect=$(type -p expect 2>/dev/null)
         if [ -z $MyExpect ]; then
